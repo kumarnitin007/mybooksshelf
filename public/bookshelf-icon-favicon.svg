@@ -1,0 +1,34 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Compact favicon version -->
+  
+  <!-- Shelf structure -->
+  <rect x="4" y="8" width="24" height="2" fill="#8B5CF6" rx="1"/>
+  <rect x="4" y="16" width="24" height="2" fill="#8B5CF6" rx="1"/>
+  <rect x="4" y="24" width="24" height="2" fill="#8B5CF6" rx="1"/>
+  
+  <!-- Side supports -->
+  <rect x="4" y="8" width="2" height="18" fill="#7C3AED" rx="1"/>
+  <rect x="26" y="8" width="2" height="18" fill="#7C3AED" rx="1"/>
+  
+  <!-- Books - Top shelf -->
+  <rect x="7" y="4" width="3" height="6" fill="#EC4899" rx="0.5"/>
+  <rect x="11" y="3" width="2" height="7" fill="#F59E0B" rx="0.5"/>
+  <rect x="14" y="4" width="3" height="6" fill="#10B981" rx="0.5"/>
+  <rect x="18" y="2" width="2" height="8" fill="#3B82F6" rx="0.5"/>
+  <rect x="21" y="4" width="3" height="6" fill="#8B5CF6" rx="0.5"/>
+  
+  <!-- Books - Middle shelf -->
+  <rect x="7" y="12" width="2" height="6" fill="#EF4444" rx="0.5"/>
+  <rect x="10" y="11" width="3" height="7" fill="#F97316" rx="0.5"/>
+  <rect x="14" y="12" width="2" height="6" fill="#84CC16" rx="0.5"/>
+  <rect x="17" y="11" width="3" height="7" fill="#06B6D4" rx="0.5"/>
+  <rect x="21" y="13" width="2" height="5" fill="#A855F7" rx="0.5"/>
+  
+  <!-- Books - Bottom shelf -->
+  <rect x="7" y="20" width="3" height="6" fill="#DC2626" rx="0.5"/>
+  <rect x="11" y="19" width="2" height="7" fill="#EA580C" rx="0.5"/>
+  <rect x="14" y="20" width="3" height="6" fill="#16A34A" rx="0.5"/>
+  <rect x="18" y="19" width="2" height="7" fill="#0891B2" rx="0.5"/>
+  <rect x="21" y="21" width="3" height="5" fill="#9333EA" rx="0.5"/>
+</svg>
+

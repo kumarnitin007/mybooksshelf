@@ -1,0 +1,32 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Minimalist bookshelf icon -->
+  
+  <!-- Three horizontal shelves -->
+  <line x1="12" y1="18" x2="52" y2="18" stroke="#8B5CF6" stroke-width="3" stroke-linecap="round"/>
+  <line x1="12" y1="32" x2="52" y2="32" stroke="#8B5CF6" stroke-width="3" stroke-linecap="round"/>
+  <line x1="12" y1="46" x2="52" y2="46" stroke="#8B5CF6" stroke-width="3" stroke-linecap="round"/>
+  
+  <!-- Vertical supports -->
+  <line x1="12" y1="18" x2="12" y2="46" stroke="#7C3AED" stroke-width="3" stroke-linecap="round"/>
+  <line x1="52" y1="18" x2="52" y2="46" stroke="#7C3AED" stroke-width="3" stroke-linecap="round"/>
+  
+  <!-- Books as simple rectangles -->
+  <rect x="18" y="12" width="4" height="8" fill="#EC4899" rx="1"/>
+  <rect x="24" y="10" width="3" height="10" fill="#F59E0B" rx="1"/>
+  <rect x="29" y="11" width="4" height="9" fill="#10B981" rx="1"/>
+  <rect x="35" y="9" width="3" height="11" fill="#3B82F6" rx="1"/>
+  <rect x="40" y="12" width="4" height="8" fill="#8B5CF6" rx="1"/>
+  
+  <rect x="18" y="26" width="3" height="8" fill="#EF4444" rx="1"/>
+  <rect x="23" y="24" width="4" height="10" fill="#F97316" rx="1"/>
+  <rect x="29" y="26" width="3" height="8" fill="#84CC16" rx="1"/>
+  <rect x="34" y="25" width="4" height="9" fill="#06B6D4" rx="1"/>
+  <rect x="40" y="27" width="3" height="7" fill="#A855F7" rx="1"/>
+  
+  <rect x="18" y="40" width="4" height="8" fill="#DC2626" rx="1"/>
+  <rect x="24" y="38" width="3" height="10" fill="#EA580C" rx="1"/>
+  <rect x="29" y="40" width="4" height="8" fill="#16A34A" rx="1"/>
+  <rect x="35" y="39" width="3" height="9" fill="#0891B2" rx="1"/>
+  <rect x="40" y="41" width="4" height="7" fill="#9333EA" rx="1"/>
+</svg>
+
