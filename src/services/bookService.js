@@ -248,3 +248,95 @@ export const transformBookToDB = (appBook) => {
     finish_date: appBook.finishDate || null
   };
 };
+
+/**
+ * Get total book count for a user (for comparison)
+ * @param {string} userId - The user ID
+ * @returns {Promise<{data: number, error: object|null}>}
+ */
+export const getUserBookCount = async (userId) => {
+  try {
+    // Get all user's bookshelves
+    const { data: bookshelves, error: bookshelfError } = await supabase
+      .from('bk_bookshelves')
+      .select('id')
+      .eq('user_id', userId);
+
+    if (bookshelfError) {
+      console.error('Error fetching bookshelves for count:', bookshelfError);
+      return { data: 0, error: bookshelfError };
+    }
+
+    if (!bookshelves || bookshelves.length === 0) {
+      return { data: 0, error: null };
+    }
+
+    const bookshelfIds = bookshelves.map(bs => bs.id);
+
+    // Count books in these bookshelves
+    const { count, error } = await supabase
+      .from('bk_books')
+      .select('*', { count: 'exact', head: true })
+      .in('bookshelf_id', bookshelfIds);
+
+    if (error) {
+      console.error('Error counting books:', error);
+      return { data: 0, error };
+    }
+
+    return { data: count || 0, error: null };
+  } catch (error) {
+    console.error('Error getting user book count:', error);
+    return { data: 0, error };
+  }
+};
+
+/**
+ * Get books read this month for a user (for comparison)
+ * @param {string} userId - The user ID
+ * @returns {Promise<{data: number, error: object|null}>}
+ */
+export const getUserBooksThisMonth = async (userId) => {
+  try {
+    // Get all user's bookshelves
+    const { data: bookshelves, error: bookshelfError } = await supabase
+      .from('bk_bookshelves')
+      .select('id')
+      .eq('user_id', userId);
+
+    if (bookshelfError) {
+      console.error('Error fetching bookshelves for monthly count:', bookshelfError);
+      return { data: 0, error: bookshelfError };
+    }
+
+    if (!bookshelves || bookshelves.length === 0) {
+      return { data: 0, error: null };
+    }
+
+    const bookshelfIds = bookshelves.map(bs => bs.id);
+
+    // Get current month start and end
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+    // Count books finished this month
+    const { count, error } = await supabase
+      .from('bk_books')
+      .select('*', { count: 'exact', head: true })
+      .in('bookshelf_id', bookshelfIds)
+      .not('finish_date', 'is', null)
+      .gte('finish_date', monthStart)
+      .lte('finish_date', monthEnd);
+
+    if (error) {
+      console.error('Error counting monthly books:', error);
+      return { data: 0, error };
+    }
+
+    return { data: count || 0, error: null };
+  } catch (error) {
+    console.error('Error getting user books this month:', error);
+    return { data: 0, error };
+  }
+};

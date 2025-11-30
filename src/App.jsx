@@ -35,15 +35,35 @@ import {
   deleteBook, 
   moveBook, 
   getBooksInBookshelf,
-  transformBookFromDB 
+  transformBookFromDB,
+  getUserBookCount,
+  getUserBooksThisMonth
 } from './services/bookService';
 import { 
   createBookshelf, 
   updateBookshelf, 
   deleteBookshelf, 
-  getUserBookshelves,
-  ensureDefaultBookshelves 
+  getUserBookshelves
 } from './services/bookshelfService';
+import {
+  getUserXP,
+  addXP,
+  getUserStreak,
+  updateReadingStreak,
+  getAchievements,
+  awardAchievement,
+  getUserRewards,
+  unlockReward,
+  getChallenges,
+  createChallenge,
+  updateChallengeProgress,
+  getBookQuizzes,
+  submitQuizAnswer,
+  getBookFacts,
+  getUserStories,
+  createStory,
+  getReadingReports
+} from './services/gamificationService';
 import { 
   getIgnoredSuggestions, 
   ignoreSuggestion as ignoreSuggestionService,
@@ -219,7 +239,8 @@ export default function App() {
     monthlyTarget: 0,
     avatar: '📚',
     bio: '',
-    feedback: ''
+    feedback: '',
+    hideFromComparison: false
   });
   const [showAvatarSelector, setShowAvatarSelector] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -240,9 +261,27 @@ export default function App() {
   const [authUser, setAuthUser] = useState(null); // Supabase auth user
   const [users, setUsers] = useState([]); // All users in the app
   const [userProfiles, setUserProfiles] = useState({}); // Map of userId -> profile data
+  const [userStats, setUserStats] = useState({}); // Map of userId -> {totalBooks, monthlyBooks}
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showUserComparison, setShowUserComparison] = useState(false);
+  const [loadingUserStats, setLoadingUserStats] = useState(false);
   const [encouragingMessage, setEncouragingMessage] = useState('');
+  // Gamification state
+  const [userXP, setUserXP] = useState(null);
+  const [userStreak, setUserStreak] = useState(null);
+  const [recentAchievements, setRecentAchievements] = useState([]);
+  const [userRewards, setUserRewards] = useState([]);
+  const [showLevelUpModal, setShowLevelUpModal] = useState(false);
+  const [levelUpData, setLevelUpData] = useState(null);
+  const [showAchievementModal, setShowAchievementModal] = useState(false);
+  const [newAchievement, setNewAchievement] = useState(null);
+  const [showStoryModal, setShowStoryModal] = useState(false);
+  const [showChallengeModal, setShowChallengeModal] = useState(false);
+  const [showQuizModal, setShowQuizModal] = useState(false);
+  const [showStatsModal, setShowStatsModal] = useState(false);
+  const [showReportsModal, setShowReportsModal] = useState(false);
+  const [showCustomizationModal, setShowCustomizationModal] = useState(false);
+  const [challenges, setChallenges] = useState([]);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -458,6 +497,134 @@ export default function App() {
     }
   };
 
+  const loadUserStats = async () => {
+    try {
+      setLoadingUserStats(true);
+      const statsMap = {};
+      
+      // Load stats for each user (books + XP)
+      for (const user of users) {
+        const [totalResult, monthlyResult, xpResult] = await Promise.all([
+          getUserBookCount(user.id),
+          getUserBooksThisMonth(user.id),
+          getUserXP(user.id)
+        ]);
+        
+        statsMap[user.id] = {
+          totalBooks: totalResult.data || 0,
+          monthlyBooks: monthlyResult.data || 0,
+          xp: xpResult.data?.total_xp || 0,
+          level: xpResult.data?.current_level || 1
+        };
+      }
+      
+      setUserStats(statsMap);
+    } catch (error) {
+      console.error('Error loading user stats:', error);
+    } finally {
+      setLoadingUserStats(false);
+    }
+  };
+
+  // Load gamification data
+  const loadGamificationData = async () => {
+    if (!currentUser) return;
+    
+    try {
+      // Load XP
+      const { data: xpData } = await getUserXP(currentUser.id);
+      if (xpData) setUserXP(xpData);
+
+      // Load streak
+      const { data: streakData } = await getUserStreak(currentUser.id);
+      if (streakData) setUserStreak(streakData);
+
+      // Load recent achievements
+      const { data: achievements } = await getAchievements(currentUser.id, 5);
+      if (achievements) setRecentAchievements(achievements);
+
+      // Load rewards
+      const { data: rewards } = await getUserRewards(currentUser.id);
+      if (rewards) setUserRewards(rewards);
+
+      // Load challenges
+      const { data: challengesData } = await getChallenges(currentUser.id);
+      if (challengesData) setChallenges(challengesData);
+    } catch (error) {
+      console.error('Error loading gamification data:', error);
+    }
+  };
+
+  // Check and award achievements
+  const checkAchievements = async (userId, bookshelves) => {
+    try {
+      const allBooks = bookshelves.flatMap(shelf => shelf.books || []);
+      const totalBooks = allBooks.length;
+      const finishedBooks = allBooks.filter(b => b.finishDate);
+      const booksThisMonth = finishedBooks.filter(b => {
+        const finishDate = new Date(b.finishDate);
+        const now = new Date();
+        return finishDate.getMonth() === now.getMonth() && finishDate.getFullYear() === now.getFullYear();
+      }).length;
+
+      // First book achievement
+      if (totalBooks === 1) {
+        const result = await awardAchievement(userId, 'first_book', 'First Book', '🎉', 'Read your first book!');
+        if (result.data && !result.alreadyEarned) {
+          setNewAchievement(result.data);
+          setShowAchievementModal(true);
+          await addXP(userId, 50, 'First book achievement');
+        }
+      }
+
+      // 10 books achievement
+      if (totalBooks === 10) {
+        const result = await awardAchievement(userId, 'ten_books', 'Bookworm', '📚', 'Read 10 books!');
+        if (result.data && !result.alreadyEarned) {
+          setNewAchievement(result.data);
+          setShowAchievementModal(true);
+          await addXP(userId, 100, '10 books achievement');
+        }
+      }
+
+      // Speed reader (5 books in a month)
+      if (booksThisMonth >= 5) {
+        const result = await awardAchievement(userId, 'speed_reader', 'Speed Reader', '⚡', 'Read 5 books in a month!');
+        if (result.data && !result.alreadyEarned) {
+          setNewAchievement(result.data);
+          setShowAchievementModal(true);
+          await addXP(userId, 150, 'Speed reader achievement');
+        }
+      }
+
+      // Streak achievements
+      if (userStreak) {
+        if (userStreak.current_streak === 7) {
+          const result = await awardAchievement(userId, 'streak_7', 'Week Warrior', '🔥', '7 day reading streak!');
+          if (result.data && !result.alreadyEarned) {
+            setNewAchievement(result.data);
+            setShowAchievementModal(true);
+            await addXP(userId, 75, '7 day streak achievement');
+          }
+        }
+        if (userStreak.current_streak === 30) {
+          const result = await awardAchievement(userId, 'streak_30', 'Monthly Master', '🌟', '30 day reading streak!');
+          if (result.data && !result.alreadyEarned) {
+            setNewAchievement(result.data);
+            setShowAchievementModal(true);
+            await addXP(userId, 200, '30 day streak achievement');
+          }
+        }
+      }
+
+      // Reload achievements after awarding
+      const { data: achievements } = await getAchievements(userId, 5);
+      if (achievements) setRecentAchievements(achievements);
+    } catch (error) {
+      console.error('Error checking achievements:', error);
+    }
+  };
+
   const loadData = async () => {
     if (!currentUser || isUpdatingRef.current) return;
     
@@ -503,6 +670,9 @@ export default function App() {
 
       setBookshelves(bookshelvesWithBooks);
 
+      // Load gamification data
+      await loadGamificationData();
+
       // Load user profile from database
       const { data: profileData, error: profileError } = await getUserProfile(currentUser.id);
       
@@ -514,7 +684,8 @@ export default function App() {
           monthlyTarget: profileData.monthly_target || 0,
           avatar: profileData.avatar || '📚',
           bio: profileData.bio || '',
-          feedback: profileData.feedback || ''
+          feedback: profileData.feedback || '',
+          hideFromComparison: profileData.hide_from_comparison || false
         });
       }
 
@@ -744,8 +915,8 @@ export default function App() {
         return finishDate.getMonth() === currentMonth && finishDate.getFullYear() === currentYear;
       }).length;
     }
-    // For other users, would need to fetch from database (can be async later)
-    return 0;
+    // For other users, use fetched stats
+    return userStats[userId]?.monthlyBooks || 0;
   };
 
   const getTotalBooksRead = (userId) => {
@@ -753,8 +924,8 @@ export default function App() {
       // For current user, use local state
       return bookshelves.reduce((total, shelf) => total + (shelf.books?.length || 0), 0);
     }
-    // For other users, would need to fetch from database (can be async later)
-    return 0;
+    // For other users, use fetched stats
+    return userStats[userId]?.totalBooks || 0;
   };
 
 
@@ -1284,6 +1455,12 @@ export default function App() {
         }
       }
 
+      // Check if book is being finished (finishDate added)
+      const currentBook = bookshelves
+        .flatMap(shelf => shelf.books)
+        .find(book => book.id === bookId);
+      const isFinishingBook = updates.finishDate && !currentBook?.finishDate;
+
       // Update in database
       const result = await updateBook(bookId, updates);
       
@@ -1295,11 +1472,48 @@ export default function App() {
       // Update local state
       const updatedBookshelves = bookshelves.map(shelf => ({
         ...shelf,
-        books: shelf.books.map(book => 
+        books: shelf.books.map(book =>
           book.id === bookId ? { ...book, ...updates } : book
         )
       }));
       setBookshelves(updatedBookshelves);
+
+      // Gamification: Award XP and update streak when book is finished
+      if (isFinishingBook && currentUser) {
+        // Award XP for finishing a book
+        const xpAmount = 50; // Base XP for finishing a book
+        const { data: xpResult, leveledUp, newLevel } = await addXP(currentUser.id, xpAmount, 'Finished a book');
+        if (xpResult) {
+          setUserXP(xpResult);
+          if (leveledUp) {
+            setLevelUpData({ level: newLevel, xp: xpResult.total_xp });
+            setShowLevelUpModal(true);
+          }
+        }
+
+        // Update reading streak
+        const { data: streakResult } = await updateReadingStreak(currentUser.id, updates.finishDate);
+        if (streakResult) {
+          setUserStreak(streakResult);
+        }
+
+        // Check achievements
+        await checkAchievements(currentUser.id, updatedBookshelves);
+
+        // Update challenge progress
+        if (challenges.length > 0) {
+          const activeChallenges = challenges.filter(c => !c.is_completed && 
+            new Date(c.end_date) >= new Date() && 
+            new Date(c.start_date) <= new Date()
+          );
+          for (const challenge of activeChallenges) {
+            await updateChallengeProgress(challenge.id, bookId);
+          }
+          // Reload challenges
+          const { data: updatedChallenges } = await getChallenges(currentUser.id);
+          if (updatedChallenges) setChallenges(updatedChallenges);
+        }
+      }
     } catch (error) {
       console.error('Error updating book:', error);
       // Still update local state
@@ -2186,8 +2400,11 @@ export default function App() {
                 <button
                   onClick={async () => {
                     setShowUserComparison(true);
-                    // Load profiles for all users when opening comparison
-                    await loadUserProfiles();
+                    // Load profiles and stats for all users when opening comparison
+                    await Promise.all([
+                      loadUserProfiles(),
+                      loadUserStats()
+                    ]);
                   }}
                   className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-500 text-white rounded-lg sm:rounded-xl hover:bg-blue-600 transition-all text-xs sm:text-base"
                   title="Compare Users"
@@ -2252,6 +2469,44 @@ export default function App() {
 
                 {/* Stats */}
                 <div className="flex flex-wrap gap-4 sm:gap-6 flex-1">
+                  {/* XP and Level */}
+                  {userXP && (
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-yellow-500" />
+                      <div>
+                        <div className="text-lg sm:text-xl font-bold text-gray-900">
+                          Level {userXP.current_level || 1}
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          {userXP.total_xp || 0} XP
+                        </div>
+                        {userXP.xp_to_next_level > 0 && (
+                          <div className="w-20 h-1.5 bg-gray-200 rounded-full mt-1 overflow-hidden">
+                            <div 
+                              className="h-full bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-full transition-all"
+                              style={{ 
+                                width: `${Math.min(100, ((userXP.total_xp || 0) % (100 + (userXP.current_level - 1) * 50)) / (userXP.xp_to_next_level || 100) * 100)}%` 
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Reading Streak */}
+                  {userStreak && userStreak.current_streak > 0 && (
+                    <div className="flex items-center gap-2">
+                      <div className="text-2xl">🔥</div>
+                      <div>
+                        <div className="text-lg sm:text-xl font-bold text-gray-900">
+                          {userStreak.current_streak} day{userStreak.current_streak !== 1 ? 's' : ''}
+                        </div>
+                        <div className="text-xs text-gray-600">Reading Streak</div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-2">
                     <Book className="w-5 h-5 text-indigo-600" />
                     <div>
@@ -2277,18 +2532,29 @@ export default function App() {
                       </div>
                     </div>
                   )}
-                  {mostReadAuthor && mostReadAuthor !== 'N/A' && (
-                    <div className="flex items-center gap-2">
-                      <Star className="w-5 h-5 text-yellow-500" />
-                      <div>
-                        <div className="text-sm sm:text-base font-semibold text-gray-900 truncate max-w-[120px] sm:max-w-none">
-                          {mostReadAuthor}
-                        </div>
-                        <div className="text-xs text-gray-600">Favorite Author</div>
-                      </div>
-                    </div>
-                  )}
                 </div>
+
+                {/* Recent Achievements */}
+                {recentAchievements.length > 0 && (
+                  <div className="w-full mt-4 pt-4 border-t border-gray-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Sparkles className="w-4 h-4 text-yellow-500" />
+                      <span className="text-sm font-semibold text-gray-700">Recent Achievements</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {recentAchievements.slice(0, 5).map((achievement) => (
+                        <div
+                          key={achievement.id}
+                          className="flex items-center gap-1.5 px-2 py-1 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border border-yellow-200"
+                          title={achievement.badge_description}
+                        >
+                          <span className="text-lg">{achievement.badge_emoji}</span>
+                          <span className="text-xs font-medium text-gray-700">{achievement.badge_name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Encouraging Message */}
                 {encouragingMessage && (
@@ -2651,18 +2917,18 @@ export default function App() {
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 sticky top-0">
                         <tr>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Title</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Author</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Bookshelf</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[200px]">Title</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[150px]">Author</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[120px]">Bookshelf</th>
                           <th className="px-4 py-3 text-center font-semibold text-gray-700 border-b">Rating</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Start Date</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Finish Date</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[110px]">Start Date</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[110px]">Finish Date</th>
                           <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Description</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Favorite Character</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[160px] whitespace-nowrap">Favorite Character</th>
                           <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Scene Summary</th>
                           <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Memorable Moments</th>
                           <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Review</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Least Favorite Part</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[160px] whitespace-nowrap">Least Favorite Part</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2672,9 +2938,9 @@ export default function App() {
                             className="hover:bg-gray-50 border-b border-gray-100 cursor-pointer"
                             onClick={() => { setSelectedBook(book); setShowDetailsModal(true); }}
                           >
-                            <td className="px-4 py-3 font-medium text-gray-900">{book.title || '-'}</td>
-                            <td className="px-4 py-3 text-gray-700">{book.author || '-'}</td>
-                            <td className="px-4 py-3 text-gray-700">
+                            <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{book.title || '-'}</td>
+                            <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{book.author || '-'}</td>
+                            <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
                               <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs">
                                 {book.bookshelfName || '-'}
                               </span>
@@ -2689,8 +2955,8 @@ export default function App() {
                                 <span className="text-gray-400">-</span>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-gray-600">{book.startDate || '-'}</td>
-                            <td className="px-4 py-3 text-gray-600">{book.finishDate || '-'}</td>
+                            <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{book.startDate || '-'}</td>
+                            <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{book.finishDate || '-'}</td>
                             <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={book.description || ''}>
                               {book.description || '-'}
                             </td>
@@ -3603,7 +3869,7 @@ export default function App() {
 
               {/* Statistics */}
               <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="font-semibold text-gray-900 mb-2">Statistics</h3>
+                <h3 className="font-semibold text-gray-900 mb-4">Reading Statistics</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-2xl font-bold text-indigo-600">{allBooks.length}</p>
@@ -3627,17 +3893,88 @@ export default function App() {
                     <p className="text-sm text-gray-600">Average Rating</p>
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-green-600 truncate" title={mostReadAuthor}>
-                      {mostReadAuthor.length > 15 ? mostReadAuthor.substring(0, 15) + '...' : mostReadAuthor}
-                    </p>
-                    <p className="text-sm text-gray-600">Most Read Author</p>
-                  </div>
-                  <div>
                     <p className="text-2xl font-bold text-teal-600">{averageBooksPerMonth}</p>
                     <p className="text-sm text-gray-600">Avg Books/Month</p>
                   </div>
+                  {mostReadAuthor && mostReadAuthor !== 'N/A' && (
+                    <div>
+                      <p className="text-lg font-bold text-green-600 truncate" title={mostReadAuthor}>
+                        {mostReadAuthor}
+                      </p>
+                      <p className="text-sm text-gray-600">Favorite Author</p>
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* Gamification Stats */}
+              {(userXP || userStreak) && (
+                <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-4 border border-yellow-200">
+                  <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-yellow-600" />
+                    Achievements & Progress
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {userXP && (
+                      <>
+                        <div>
+                          <p className="text-2xl font-bold text-yellow-600">Level {userXP.current_level || 1}</p>
+                          <p className="text-sm text-gray-600">Current Level</p>
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold text-orange-600">{userXP.total_xp || 0}</p>
+                          <p className="text-sm text-gray-600">Total XP</p>
+                        </div>
+                        {userXP.xp_to_next_level > 0 && (
+                          <div className="col-span-2">
+                            <div className="flex justify-between text-xs text-gray-600 mb-1">
+                              <span>Progress to Level {userXP.current_level + 1}</span>
+                              <span>{userXP.xp_to_next_level} XP needed</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-gradient-to-r from-yellow-400 to-orange-500 h-2 rounded-full transition-all"
+                                style={{ 
+                                  width: `${Math.min(100, ((userXP.total_xp || 0) % (100 + (userXP.current_level - 1) * 50)) / (userXP.xp_to_next_level || 100) * 100)}%` 
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {userStreak && (
+                      <>
+                        <div>
+                          <p className="text-2xl font-bold text-red-600">🔥 {userStreak.current_streak || 0}</p>
+                          <p className="text-sm text-gray-600">Current Streak</p>
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold text-purple-600">🌟 {userStreak.longest_streak || 0}</p>
+                          <p className="text-sm text-gray-600">Longest Streak</p>
+                        </div>
+                      </>
+                    )}
+                    {recentAchievements.length > 0 && (
+                      <div className="col-span-2">
+                        <p className="text-sm font-semibold text-gray-700 mb-2">Recent Achievements ({recentAchievements.length})</p>
+                        <div className="flex flex-wrap gap-2">
+                          {recentAchievements.slice(0, 6).map((achievement) => (
+                            <div
+                              key={achievement.id}
+                              className="flex items-center gap-1.5 px-2 py-1 bg-white rounded-lg border border-yellow-200"
+                              title={achievement.badge_description}
+                            >
+                              <span className="text-lg">{achievement.badge_emoji}</span>
+                              <span className="text-xs font-medium text-gray-700">{achievement.badge_name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Feedback Section */}
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
@@ -3658,6 +3995,31 @@ export default function App() {
                 />
                 <div className="text-xs text-gray-500 mt-2 text-right">
                   {(userProfile.feedback || '').length}/1000
+                </div>
+              </div>
+
+              {/* Privacy Settings */}
+              <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-6 border border-gray-200">
+                <div className="flex items-center gap-3 mb-4">
+                  <Settings className="w-6 h-6 text-gray-600" />
+                  <h3 className="text-xl font-bold text-gray-900">Privacy Settings</h3>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">Hide from User Comparison</p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      When enabled, your profile will not appear in the user comparison list
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={userProfile.hideFromComparison || false}
+                      onChange={(e) => setUserProfile({ ...userProfile, hideFromComparison: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                  </label>
                 </div>
               </div>
 
@@ -3687,7 +4049,8 @@ export default function App() {
                       monthly_target: userProfile.monthlyTarget,
                       avatar: userProfile.avatar,
                       bio: userProfile.bio,
-                      feedback: userProfile.feedback
+                      feedback: userProfile.feedback,
+                      hide_from_comparison: userProfile.hideFromComparison || false
                     });
                     
                     if (result.error) {
@@ -4088,58 +4451,142 @@ export default function App() {
               </button>
             </div>
             
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b-2 border-gray-200">
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">User</th>
-                    <th className="text-center py-3 px-4 font-semibold text-gray-700">Total Books</th>
-                    <th className="text-center py-3 px-4 font-semibold text-gray-700">This Month</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => {
-                    const totalBooks = getTotalBooksRead(user.id);
-                    const monthlyBooks = getBooksReadThisMonth(user.id);
-                    const isCurrentUser = currentUser && user.id === currentUser.id;
-                    const profile = userProfiles[user.id];
-                    const displayName = profile?.name?.trim() || user.username || user.email || 'Unknown User';
-                    const avatar = profile?.avatar || '👤';
-                    
-                    return (
-                      <tr
-                        key={user.id}
-                        className={`border-b border-gray-100 hover:bg-gray-50 ${
-                          isCurrentUser ? 'bg-indigo-50' : ''
-                        }`}
-                      >
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-3">
-                            <span className="text-2xl">{avatar}</span>
-                            <span className={`font-medium ${isCurrentUser ? 'text-indigo-600' : 'text-gray-900'}`}>
-                              {displayName}
-                              {isCurrentUser && <span className="ml-2 text-xs text-indigo-500">(You)</span>}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="text-center py-4 px-4">
-                          <span className="text-lg font-semibold text-gray-900">{totalBooks}</span>
-                        </td>
-                        <td className="text-center py-4 px-4">
-                          <span className="text-lg font-semibold text-indigo-600">{monthlyBooks}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              
-              {users.length === 0 && (
-                <div className="text-center py-12 text-gray-500">
-                  No users found. Create an account to get started!
-                </div>
-              )}
-            </div>
+            {loadingUserStats ? (
+              <div className="text-center py-12">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                <p className="mt-4 text-gray-600">Loading user statistics...</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b-2 border-gray-200">
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700">User</th>
+                      <th className="text-center py-3 px-4 font-semibold text-gray-700">Total Books</th>
+                      <th className="text-center py-3 px-4 font-semibold text-gray-700">This Month</th>
+                      <th className="text-center py-3 px-4 font-semibold text-gray-700">Level</th>
+                      <th className="text-center py-3 px-4 font-semibold text-gray-700">XP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      // Sort users: current user first, then by total books (descending)
+                      const sortedUsers = [...users].sort((a, b) => {
+                        const aIsCurrent = currentUser && a.id === currentUser.id;
+                        const bIsCurrent = currentUser && b.id === currentUser.id;
+                        
+                        // Current user always first
+                        if (aIsCurrent && !bIsCurrent) return -1;
+                        if (!aIsCurrent && bIsCurrent) return 1;
+                        
+                        // Then sort by total books (descending)
+                        const aBooks = getTotalBooksRead(a.id);
+                        const bBooks = getTotalBooksRead(b.id);
+                        return bBooks - aBooks;
+                      });
+                      
+                      return sortedUsers.map((user) => {
+                        const totalBooks = getTotalBooksRead(user.id);
+                        const monthlyBooks = getBooksReadThisMonth(user.id);
+                        const isCurrentUser = currentUser && user.id === currentUser.id;
+                        const profile = userProfiles[user.id];
+                        const displayName = profile?.name?.trim() || user.username || user.email || 'Unknown User';
+                        const avatar = profile?.avatar || '👤';
+                        const userXP = userStats[user.id]?.xp || 0;
+                        const userLevel = userStats[user.id]?.level || 1;
+                        
+                        return (
+                          <tr
+                            key={user.id}
+                            className={`border-b border-gray-100 hover:bg-gray-50 ${
+                              isCurrentUser ? 'bg-indigo-50' : ''
+                            }`}
+                          >
+                            <td className="py-4 px-4">
+                              <div className="flex items-center gap-3">
+                                <span className="text-2xl">{avatar}</span>
+                                <span className={`font-medium ${isCurrentUser ? 'text-indigo-600' : 'text-gray-900'}`}>
+                                  {displayName}
+                                  {isCurrentUser && <span className="ml-2 text-xs text-indigo-500">(You)</span>}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="text-center py-4 px-4">
+                              <span className="text-lg font-semibold text-gray-900">{totalBooks}</span>
+                            </td>
+                            <td className="text-center py-4 px-4">
+                              <span className="text-lg font-semibold text-indigo-600">{monthlyBooks}</span>
+                            </td>
+                            <td className="text-center py-4 px-4">
+                              <span className="text-lg font-semibold text-yellow-600">Level {userLevel}</span>
+                            </td>
+                            <td className="text-center py-4 px-4">
+                              <span className="text-lg font-semibold text-orange-600">{userXP.toLocaleString()}</span>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+                
+                {users.length === 0 && (
+                  <div className="text-center py-12 text-gray-500">
+                    No users found. Create an account to get started!
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Level Up Modal */}
+      {showLevelUpModal && levelUpData && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-yellow-400 via-orange-400 to-pink-500 rounded-2xl shadow-2xl p-8 max-w-md w-full text-center animate-bounce">
+            <div className="text-8xl mb-4">🎉</div>
+            <h2 className="text-4xl font-bold text-white mb-2">LEVEL UP!</h2>
+            <p className="text-2xl font-semibold text-white mb-4">
+              You've reached Level {levelUpData.level}!
+            </p>
+            <p className="text-white/90 mb-6">
+              Total XP: {levelUpData.xp}
+            </p>
+            <button
+              onClick={() => {
+                setShowLevelUpModal(false);
+                setLevelUpData(null);
+              }}
+              className="px-6 py-3 bg-white text-orange-600 rounded-lg font-bold hover:bg-gray-100 transition-colors"
+            >
+              Awesome!
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Achievement Modal */}
+      {showAchievementModal && newAchievement && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-purple-500 via-pink-500 to-red-500 rounded-2xl shadow-2xl p-8 max-w-md w-full text-center animate-pulse">
+            <div className="text-8xl mb-4">{newAchievement.badge_emoji}</div>
+            <h2 className="text-3xl font-bold text-white mb-2">Achievement Unlocked!</h2>
+            <p className="text-2xl font-semibold text-white mb-2">
+              {newAchievement.badge_name}
+            </p>
+            <p className="text-white/90 mb-6">
+              {newAchievement.badge_description}
+            </p>
+            <button
+              onClick={() => {
+                setShowAchievementModal(false);
+                setNewAchievement(null);
+              }}
+              className="px-6 py-3 bg-white text-purple-600 rounded-lg font-bold hover:bg-gray-100 transition-colors"
+            >
+              Amazing!
+            </button>
           </div>
         </div>
       )}

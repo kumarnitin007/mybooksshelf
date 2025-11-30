@@ -103,16 +103,41 @@ export const getUserById = async (userId) => {
 
 /**
  * Get all users (for comparison screen)
+ * Excludes users who have opted to hide from comparison
  * @returns {Promise<{data: array, error: object|null}>}
  */
 export const getAllUsers = async () => {
   try {
-    const { data, error } = await supabase
+    // Get all users first
+    const { data: usersData, error: usersError } = await supabase
       .from('bk_users')
       .select('*')
       .order('created_at', { ascending: false });
 
-    return { data: data || [], error };
+    if (usersError) {
+      return { data: [], error: usersError };
+    }
+
+    if (!usersData || usersData.length === 0) {
+      return { data: [], error: null };
+    }
+
+    // Get profiles to check hide_from_comparison
+    const userIds = usersData.map(u => u.id);
+    const { data: profilesData } = await supabase
+      .from('bk_user_profiles')
+      .select('user_id, hide_from_comparison')
+      .in('user_id', userIds);
+
+    // Filter out users with hide_from_comparison = true
+    const hiddenUserIds = new Set(
+      (profilesData || [])
+        .filter(p => p.hide_from_comparison === true)
+        .map(p => p.user_id)
+    );
+
+    const filteredUsers = usersData.filter(u => !hiddenUserIds.has(u.id));
+    return { data: filteredUsers, error: null };
   } catch (error) {
     console.error('Error fetching all users:', error);
     return { data: [], error };
