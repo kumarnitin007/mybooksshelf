@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Book, Star, Calendar, User, Plus, X, Filter, Sparkles, ChevronDown, ChevronUp, Target, Settings, Grid, List, Heart, BookOpen, Edit2, Check, Upload, Image as ImageIcon, Info, Save, MessageSquare, Table, Download, FileUp } from 'lucide-react';
+import { Search, Book, Star, Calendar, User, Plus, X, Filter, Sparkles, ChevronDown, ChevronUp, Target, Settings, Grid, List, Heart, BookOpen, Edit2, Check, Upload, Image as ImageIcon, Info, Save, MessageSquare, Table, Download, FileUp, Library } from 'lucide-react';
 import AboutBookshelfModal from './components/AboutBookshelfModal';
 
 // Import Supabase services
@@ -3288,6 +3288,40 @@ export default function App() {
                   />
                 </div>
               )}
+
+              {/* Library Availability Checker */}
+              <div className="mb-6 mt-6 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border border-blue-200">
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Library className="w-5 h-5 text-blue-600" />
+                  Check Library Availability
+                </h3>
+                <p className="text-sm text-gray-600 mb-3">
+                  Check if this book is available at your local libraries
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={`https://www.sno-isle.org/catalog?q=${encodeURIComponent(selectedBook.title + (selectedBook.author ? ' ' + selectedBook.author : ''))}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    <Library className="w-4 h-4" />
+                    Sno-Isle Libraries
+                  </a>
+                  <a
+                    href={`https://kcls.bibliocommons.com/v2/search?query=${encodeURIComponent(selectedBook.title + (selectedBook.author ? ' ' + selectedBook.author : ''))}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                  >
+                    <Library className="w-4 h-4" />
+                    KCLS (King County)
+                  </a>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Opens library catalog in a new tab. You may need to search manually if the book isn't found automatically.
+                </p>
+              </div>
 
               <div className="flex gap-3 mt-6">
                 <button
