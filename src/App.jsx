@@ -5,7 +5,7 @@
  * Fully migrated to use Supabase database - all data operations use Supabase services.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Book, Star, Calendar, User, Plus, X, Filter, Sparkles, ChevronDown, ChevronUp, Target, Settings, Grid, List, Heart, BookOpen, Edit2, Check, Upload, Image as ImageIcon, Info, Save, MessageSquare, Table, Download, FileUp } from 'lucide-react';
 import AboutBookshelfModal from './components/AboutBookshelfModal';
 
@@ -242,6 +242,7 @@ export default function App() {
   const [userProfiles, setUserProfiles] = useState({}); // Map of userId -> profile data
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showUserComparison, setShowUserComparison] = useState(false);
+  const [encouragingMessage, setEncouragingMessage] = useState('');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -2048,6 +2049,90 @@ export default function App() {
   const mostReadAuthor = getMostReadAuthor();
   const averageBooksPerMonth = getAverageBooksPerMonth();
 
+  // Generate encouraging message based on user's reading data
+  const generateEncouragingMessage = useCallback(() => {
+    const allBooks = bookshelves.flatMap(shelf => shelf.books);
+    const totalBooks = allBooks.length;
+    const ratedBooks = allBooks.filter(b => b.rating > 0);
+    const avgRating = ratedBooks.length > 0 
+      ? (ratedBooks.reduce((sum, b) => sum + b.rating, 0) / ratedBooks.length).toFixed(1)
+      : 0;
+    
+    // Analyze reading preferences
+    const authors = [...new Set(allBooks.map(b => b.author).filter(Boolean))];
+    const genres = []; // Could be extracted from book data if available
+    const recentBooks = allBooks
+      .filter(b => b.finishDate)
+      .sort((a, b) => new Date(b.finishDate) - new Date(a.finishDate))
+      .slice(0, 5);
+    
+    // Generate message based on stats
+    const messages = [];
+    
+    if (totalBooks === 0) {
+      messages.push("🌟 Ready to start your reading journey? Add your first book and begin an amazing adventure!");
+      messages.push("📚 Every great reader starts with a single book. What will yours be?");
+      messages.push("✨ Your bookshelf is waiting for stories! Let's fill it with your favorite reads.");
+    } else if (booksReadThisMonth === 0 && userProfile.monthlyTarget > 0) {
+      messages.push(`📖 You've read ${totalBooks} amazing books! Ready to add another one this month?`);
+      messages.push(`🎯 You're ${remainingBooks} books away from your monthly goal. You've got this!`);
+      messages.push(`📚 With ${totalBooks} books under your belt, you're building an impressive collection!`);
+    } else if (booksReadThisMonth > 0 && remainingBooks > 0) {
+      messages.push(`🔥 Amazing progress! You've read ${booksReadThisMonth} book${booksReadThisMonth > 1 ? 's' : ''} this month. Only ${remainingBooks} more to reach your goal!`);
+      messages.push(`📚 ${booksReadThisMonth} down, ${remainingBooks} to go! You're on fire this month!`);
+      messages.push(`✨ Keep up the fantastic reading pace! You're ${Math.round((booksReadThisMonth / userProfile.monthlyTarget) * 100)}% of the way to your monthly goal!`);
+    } else if (booksReadThisMonth >= userProfile.monthlyTarget && userProfile.monthlyTarget > 0) {
+      messages.push(`🎉 Congratulations! You've exceeded your monthly goal with ${booksReadThisMonth} books! You're unstoppable!`);
+      messages.push(`🏆 Goal achieved! ${booksReadThisMonth} books this month is incredible. Time to set a new challenge?`);
+      messages.push(`⭐ Wow! You've read ${booksReadThisMonth} books this month. You're a reading superstar!`);
+    } else if (mostReadAuthor && mostReadAuthor !== 'N/A') {
+      messages.push(`📖 You're clearly a fan of ${mostReadAuthor}! Explore more from your favorite author or discover new voices.`);
+      messages.push(`🎯 ${mostReadAuthor} seems to be your go-to author. Have you checked out their latest releases?`);
+      messages.push(`✨ Your love for ${mostReadAuthor} shows great taste! Consider branching out to similar authors.`);
+    } else if (avgRating >= 4) {
+      messages.push(`⭐ With an average rating of ${avgRating} stars, you clearly know how to pick great books!`);
+      messages.push(`🌟 Your ${avgRating}-star average shows you're finding books you truly love. Keep exploring!`);
+      messages.push(`📚 Your high ratings (${avgRating} stars) mean you're curating an excellent collection!`);
+    } else if (totalBooks >= 50) {
+      messages.push(`📚 Wow! ${totalBooks} books is an incredible achievement. You're a true bibliophile!`);
+      messages.push(`🏆 ${totalBooks} books read! That's a library to be proud of. What's next on your list?`);
+      messages.push(`✨ ${totalBooks} books and counting! Your reading journey is inspiring.`);
+    } else if (totalBooks >= 20) {
+      messages.push(`📖 ${totalBooks} books is impressive! You're building a wonderful reading habit.`);
+      messages.push(`🎯 Great progress with ${totalBooks} books! Every page turns you into a better reader.`);
+      messages.push(`✨ ${totalBooks} books read! You're on an amazing literary journey.`);
+    } else {
+      messages.push(`📚 You've read ${totalBooks} book${totalBooks > 1 ? 's' : ''}! Every book is a new adventure.`);
+      messages.push(`🌟 ${totalBooks} books and growing! Your reading collection is taking shape beautifully.`);
+      messages.push(`📖 ${totalBooks} books read! Keep going - each book adds to your story.`);
+    }
+    
+    // Add variety based on recent activity
+    if (recentBooks.length > 0) {
+      const lastBook = recentBooks[0];
+      if (lastBook.rating >= 4) {
+        messages.push(`⭐ You loved "${lastBook.title}"! Ready to find your next 5-star read?`);
+      }
+    }
+    
+    // Randomly select a message to ensure variety
+    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+    return randomMessage;
+  }, [bookshelves, booksReadThisMonth, remainingBooks, userProfile.monthlyTarget, mostReadAuthor]);
+
+  // Generate message on load or when data changes
+  // Add a small delay to ensure message changes on each load
+  useEffect(() => {
+    if (currentUser && bookshelves.length > 0) {
+      // Small delay to ensure fresh message generation
+      const timer = setTimeout(() => {
+        const message = generateEncouragingMessage();
+        setEncouragingMessage(message);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [currentUser, bookshelves.length, booksReadThisMonth, userProfile.monthlyTarget, mostReadAuthor, generateEncouragingMessage]);
+
   // Show loading state while user is being loaded
   // Add timeout to prevent infinite loading
   useEffect(() => {
@@ -2147,6 +2232,79 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* User Stats Section */}
+      {currentUser && (
+        <div className="bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 py-4 sm:py-6">
+            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+                {/* User Avatar and Name */}
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="text-4xl sm:text-5xl">{userProfile.avatar || '📚'}</div>
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-900">
+                      {userProfile.name?.trim() || currentUser.username || 'Reader'}
+                    </h2>
+                    <p className="text-xs sm:text-sm text-gray-600">Your Reading Journey</p>
+                  </div>
+                </div>
+
+                {/* Stats */}
+                <div className="flex flex-wrap gap-4 sm:gap-6 flex-1">
+                  <div className="flex items-center gap-2">
+                    <Book className="w-5 h-5 text-indigo-600" />
+                    <div>
+                      <div className="text-lg sm:text-xl font-bold text-gray-900">{getTotalBooksCount()}</div>
+                      <div className="text-xs text-gray-600">Total Books</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-purple-600" />
+                    <div>
+                      <div className="text-lg sm:text-xl font-bold text-gray-900">{booksReadThisMonth}</div>
+                      <div className="text-xs text-gray-600">This Month</div>
+                    </div>
+                  </div>
+                  {userProfile.monthlyTarget > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Target className="w-5 h-5 text-pink-600" />
+                      <div>
+                        <div className="text-lg sm:text-xl font-bold text-gray-900">
+                          {booksReadThisMonth} / {userProfile.monthlyTarget}
+                        </div>
+                        <div className="text-xs text-gray-600">Monthly Goal</div>
+                      </div>
+                    </div>
+                  )}
+                  {mostReadAuthor && mostReadAuthor !== 'N/A' && (
+                    <div className="flex items-center gap-2">
+                      <Star className="w-5 h-5 text-yellow-500" />
+                      <div>
+                        <div className="text-sm sm:text-base font-semibold text-gray-900 truncate max-w-[120px] sm:max-w-none">
+                          {mostReadAuthor}
+                        </div>
+                        <div className="text-xs text-gray-600">Favorite Author</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Encouraging Message */}
+                {encouragingMessage && (
+                  <div className="w-full sm:w-auto sm:max-w-md">
+                    <div className="bg-gradient-to-r from-indigo-100 to-purple-100 rounded-lg p-3 sm:p-4 border-l-4 border-indigo-500">
+                      <p className="text-sm sm:text-base text-gray-800 font-medium">
+                        {encouragingMessage}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Tabs for Active and Completed Bookshelves */}
