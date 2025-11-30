@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Book, Star, Calendar, User, Plus, X, Filter, Sparkles, ChevronDown, ChevronUp, Target, Settings, Grid, List, Heart, BookOpen, Edit2, Check, Upload, Image as ImageIcon, Info, Save, MessageSquare } from 'lucide-react';
+import { Search, Book, Star, Calendar, User, Plus, X, Filter, Sparkles, ChevronDown, ChevronUp, Target, Settings, Grid, List, Heart, BookOpen, Edit2, Check, Upload, Image as ImageIcon, Info, Save, MessageSquare, Table, Download, FileUp } from 'lucide-react';
 import AboutBookshelfModal from './components/AboutBookshelfModal';
 
 // Import Supabase services
@@ -194,7 +194,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterBy, setFilterBy] = useState('all');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
-  const [displayMode, setDisplayMode] = useState('covers'); // 'covers' or 'spines'
+  const [displayMode, setDisplayMode] = useState('covers'); // 'covers', 'spines', or 'table'
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [newBook, setNewBook] = useState({
@@ -239,6 +239,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null); // Current logged in user (from bk_users table)
   const [authUser, setAuthUser] = useState(null); // Supabase auth user
   const [users, setUsers] = useState([]); // All users in the app
+  const [userProfiles, setUserProfiles] = useState({}); // Map of userId -> profile data
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showUserComparison, setShowUserComparison] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
@@ -437,6 +438,22 @@ export default function App() {
       }
     } catch (error) {
       console.error('Error loading users:', error);
+    }
+  };
+
+  const loadUserProfiles = async () => {
+    try {
+      const profilesMap = {};
+      // Load profile for each user
+      for (const user of users) {
+        const { data: profile, error } = await getUserProfile(user.id);
+        if (!error && profile) {
+          profilesMap[user.id] = profile;
+        }
+      }
+      setUserProfiles(profilesMap);
+    } catch (error) {
+      console.error('Error loading user profiles:', error);
     }
   };
 
@@ -775,8 +792,21 @@ export default function App() {
 
     setIsSearching(true);
     try {
-      // Using Open Library API
-      const response = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=20`);
+      // Check if query looks like an ISBN (10 or 13 digits, possibly with hyphens)
+      const isbnPattern = /^[\d-]{10,17}$/;
+      const cleanQuery = query.replace(/[-\s]/g, '');
+      const isISBN = isbnPattern.test(cleanQuery) && (cleanQuery.length === 10 || cleanQuery.length === 13);
+      
+      let url;
+      if (isISBN) {
+        // Search by ISBN
+        url = `https://openlibrary.org/search.json?isbn=${encodeURIComponent(cleanQuery)}&limit=20`;
+      } else {
+        // Search by title/author
+        url = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=20`;
+      }
+      
+      const response = await fetch(url);
       const data = await response.json();
       
       if (data.docs && data.docs.length > 0) {
@@ -1705,6 +1735,314 @@ export default function App() {
   const activeShelf = getActiveBookshelf();
   const theme = activeShelf ? ANIMAL_THEMES[activeShelf.animal] || ANIMAL_THEMES.cat : ANIMAL_THEMES.cat;
   const filteredBooks = getFilteredBooks();
+
+  // Get all books across all bookshelves with their bookshelf names
+  const getAllBooksWithBookshelf = () => {
+    return bookshelves.flatMap(shelf => 
+      (shelf.books || []).map(book => ({
+        ...book,
+        bookshelfName: shelf.name || 'Unknown',
+        bookshelfType: shelf.type || 'regular'
+      }))
+    );
+  };
+
+  // Export functions
+  const exportToCSV = () => {
+    const books = getAllBooksWithBookshelf();
+    if (books.length === 0) {
+      alert('No books to export');
+      return;
+    }
+
+    // Define CSV headers
+    const headers = [
+      'Title', 'Author', 'Bookshelf', 'Bookshelf Type', 'Rating', 
+      'Start Date', 'Finish Date', 'Description', 'Favorite Character',
+      'Scene Summary', 'Memorable Moments', 'Review', 'Least Favorite Part'
+    ];
+
+    // Convert books to CSV rows
+    const rows = books.map(book => [
+      `"${(book.title || '').replace(/"/g, '""')}"`,
+      `"${(book.author || '').replace(/"/g, '""')}"`,
+      `"${(book.bookshelfName || '').replace(/"/g, '""')}"`,
+      `"${(book.bookshelfType || '').replace(/"/g, '""')}"`,
+      book.rating || 0,
+      book.startDate || '',
+      book.finishDate || '',
+      `"${(book.description || '').replace(/"/g, '""')}"`,
+      `"${(book.favoriteCharacter || '').replace(/"/g, '""')}"`,
+      `"${(book.sceneSummary || '').replace(/"/g, '""')}"`,
+      `"${(book.memorableMoments || '').replace(/"/g, '""')}"`,
+      `"${(book.review || '').replace(/"/g, '""')}"`,
+      `"${(book.leastFavoritePart || '').replace(/"/g, '""')}"`
+    ]);
+
+    // Combine headers and rows
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    // Create download link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `bookshelf-export-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportToJSON = () => {
+    const books = getAllBooksWithBookshelf();
+    if (books.length === 0) {
+      alert('No books to export');
+      return;
+    }
+
+    const jsonContent = JSON.stringify(books, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `bookshelf-export-${new Date().toISOString().split('T')[0]}.json`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Import functions
+  const handleFileUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const fileExtension = file.name.split('.').pop().toLowerCase();
+    
+    try {
+      if (fileExtension === 'csv') {
+        await importFromCSV(file);
+      } else if (fileExtension === 'json') {
+        await importFromJSON(file);
+      } else {
+        alert('Unsupported file format. Please upload a CSV or JSON file.');
+        return;
+      }
+    } catch (error) {
+      console.error('Error importing file:', error);
+      alert('Error importing file. Please check the file format and try again.');
+    }
+    
+    // Reset file input
+    event.target.value = '';
+  };
+
+  const importFromCSV = async (file) => {
+    const text = await file.text();
+    const lines = text.split('\n').filter(line => line.trim());
+    if (lines.length < 2) {
+      alert('CSV file must have at least a header row and one data row.');
+      return;
+    }
+
+    // Parse header
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+    
+    // Find bookshelf column index
+    const bookshelfIndex = headers.findIndex(h => h.toLowerCase() === 'bookshelf');
+    if (bookshelfIndex === -1) {
+      alert('CSV file must have a "Bookshelf" column.');
+      return;
+    }
+
+    // Parse data rows
+    let importedCount = 0;
+    for (let i = 1; i < lines.length; i++) {
+      const values = parseCSVLine(lines[i]);
+      if (values.length !== headers.length) continue;
+
+      const bookshelfName = values[bookshelfIndex]?.replace(/^"|"$/g, '') || '';
+      if (!bookshelfName) continue;
+
+      // Find or create bookshelf
+      let targetShelf = bookshelves.find(s => s.name === bookshelfName);
+      if (!targetShelf) {
+        // Create new bookshelf
+        if (!currentUser) {
+          alert('Please log in to import books.');
+          return;
+        }
+        const result = await createBookshelf(currentUser.id, {
+          name: bookshelfName,
+          animal: 'cat',
+          displayMode: 'covers',
+          type: 'regular'
+        });
+        if (result.error) {
+          console.error('Error creating bookshelf:', result.error);
+          continue;
+        }
+        targetShelf = { ...result.data, books: [] };
+        setBookshelves([...bookshelves, targetShelf]);
+      }
+
+      // Map CSV columns to book fields
+      const titleIndex = headers.findIndex(h => h.toLowerCase() === 'title');
+      const authorIndex = headers.findIndex(h => h.toLowerCase() === 'author');
+      const ratingIndex = headers.findIndex(h => h.toLowerCase() === 'rating');
+      const startDateIndex = headers.findIndex(h => h.toLowerCase() === 'start date');
+      const finishDateIndex = headers.findIndex(h => h.toLowerCase() === 'finish date');
+      const descriptionIndex = headers.findIndex(h => h.toLowerCase() === 'description');
+      const favoriteCharacterIndex = headers.findIndex(h => h.toLowerCase() === 'favorite character');
+      const sceneSummaryIndex = headers.findIndex(h => h.toLowerCase() === 'scene summary');
+      const memorableMomentsIndex = headers.findIndex(h => h.toLowerCase() === 'memorable moments');
+      const reviewIndex = headers.findIndex(h => h.toLowerCase() === 'review');
+      const leastFavoritePartIndex = headers.findIndex(h => h.toLowerCase() === 'least favorite part');
+
+      const bookData = {
+        title: titleIndex >= 0 ? values[titleIndex]?.replace(/^"|"$/g, '') || '' : '',
+        author: authorIndex >= 0 ? values[authorIndex]?.replace(/^"|"$/g, '') || '' : '',
+        rating: ratingIndex >= 0 ? parseInt(values[ratingIndex]?.replace(/^"|"$/g, '')) || 0 : 0,
+        startDate: startDateIndex >= 0 ? values[startDateIndex]?.replace(/^"|"$/g, '') || null : null,
+        finishDate: finishDateIndex >= 0 ? values[finishDateIndex]?.replace(/^"|"$/g, '') || null : null,
+        description: descriptionIndex >= 0 ? values[descriptionIndex]?.replace(/^"|"$/g, '') || '' : '',
+        favoriteCharacter: favoriteCharacterIndex >= 0 ? values[favoriteCharacterIndex]?.replace(/^"|"$/g, '') || '' : '',
+        sceneSummary: sceneSummaryIndex >= 0 ? values[sceneSummaryIndex]?.replace(/^"|"$/g, '') || '' : '',
+        memorableMoments: memorableMomentsIndex >= 0 ? values[memorableMomentsIndex]?.replace(/^"|"$/g, '') || '' : '',
+        review: reviewIndex >= 0 ? values[reviewIndex]?.replace(/^"|"$/g, '') || '' : '',
+        leastFavoritePart: leastFavoritePartIndex >= 0 ? values[leastFavoritePartIndex]?.replace(/^"|"$/g, '') || '' : '',
+        coverUrl: `https://via.placeholder.com/200x300/4F46E5/FFFFFF?text=${encodeURIComponent(values[titleIndex]?.replace(/^"|"$/g, '') || 'Book')}`
+      };
+
+      if (!bookData.title) continue;
+
+      // Create book
+      const result = await createBook(targetShelf.id, bookData);
+      if (result.error) {
+        console.error('Error creating book:', result.error);
+        continue;
+      }
+
+      // Update local state
+      const updatedBookshelves = bookshelves.map(shelf => 
+        shelf.id === targetShelf.id
+          ? { ...shelf, books: [...shelf.books, transformBookFromDB(result.data)] }
+          : shelf
+      );
+      setBookshelves(updatedBookshelves);
+      importedCount++;
+    }
+
+    alert(`Successfully imported ${importedCount} books!`);
+    await loadData(); // Reload data to ensure consistency
+  };
+
+  const parseCSVLine = (line) => {
+    const values = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        values.push(current);
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    values.push(current);
+    return values;
+  };
+
+  const importFromJSON = async (file) => {
+    const text = await file.text();
+    let books;
+    try {
+      books = JSON.parse(text);
+      if (!Array.isArray(books)) {
+        alert('JSON file must contain an array of books.');
+        return;
+      }
+    } catch (error) {
+      alert('Invalid JSON file format.');
+      return;
+    }
+
+    let importedCount = 0;
+    for (const book of books) {
+      if (!book.title) continue;
+
+      const bookshelfName = book.bookshelfName || book.bookshelf || 'Default';
+      
+      // Find or create bookshelf
+      let targetShelf = bookshelves.find(s => s.name === bookshelfName);
+      if (!targetShelf) {
+        if (!currentUser) {
+          alert('Please log in to import books.');
+          return;
+        }
+        const result = await createBookshelf(currentUser.id, {
+          name: bookshelfName,
+          animal: 'cat',
+          displayMode: 'covers',
+          type: 'regular'
+        });
+        if (result.error) {
+          console.error('Error creating bookshelf:', result.error);
+          continue;
+        }
+        targetShelf = { ...result.data, books: [] };
+        setBookshelves([...bookshelves, targetShelf]);
+      }
+
+      // Map JSON fields to book data
+      const bookData = {
+        title: book.title || '',
+        author: book.author || '',
+        rating: book.rating || 0,
+        startDate: book.startDate || null,
+        finishDate: book.finishDate || null,
+        description: book.description || '',
+        favoriteCharacter: book.favoriteCharacter || '',
+        sceneSummary: book.sceneSummary || '',
+        memorableMoments: book.memorableMoments || '',
+        review: book.review || '',
+        leastFavoritePart: book.leastFavoritePart || '',
+        coverUrl: book.coverUrl || `https://via.placeholder.com/200x300/4F46E5/FFFFFF?text=${encodeURIComponent(book.title || 'Book')}`
+      };
+
+      // Create book
+      const result = await createBook(targetShelf.id, bookData);
+      if (result.error) {
+        console.error('Error creating book:', result.error);
+        continue;
+      }
+
+      // Update local state
+      const updatedBookshelves = bookshelves.map(shelf => 
+        shelf.id === targetShelf.id
+          ? { ...shelf, books: [...shelf.books, transformBookFromDB(result.data)] }
+          : shelf
+      );
+      setBookshelves(updatedBookshelves);
+      importedCount++;
+    }
+
+    alert(`Successfully imported ${importedCount} books!`);
+    await loadData(); // Reload data to ensure consistency
+  };
   const booksReadThisMonth = getCurrentUserBooksReadThisMonth();
   const remainingBooks = Math.max(0, userProfile.monthlyTarget - booksReadThisMonth);
   const mostReadAuthor = getMostReadAuthor();
@@ -1761,7 +2099,11 @@ export default function App() {
             <div className="flex flex-wrap gap-1.5 sm:gap-3 w-full sm:w-auto justify-end">
               {currentUser && (
                 <button
-                  onClick={() => setShowUserComparison(true)}
+                  onClick={async () => {
+                    setShowUserComparison(true);
+                    // Load profiles for all users when opening comparison
+                    await loadUserProfiles();
+                  }}
                   className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-500 text-white rounded-lg sm:rounded-xl hover:bg-blue-600 transition-all text-xs sm:text-base"
                   title="Compare Users"
                 >
@@ -2003,9 +2345,21 @@ export default function App() {
                       setDisplayMode('spines');
                     }}
                     className={`px-2 sm:px-3 py-2 rounded-lg flex-shrink-0 ${activeShelf.displayMode === 'spines' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-                    title="List view"
+                    title="Spine view"
                   >
                     <List className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      const updated = [...bookshelves];
+                      updated[activeBookshelfIndex].displayMode = 'table';
+                      setBookshelves(updated);
+                      setDisplayMode('table');
+                    }}
+                    className={`px-2 sm:px-3 py-2 rounded-lg flex-shrink-0 ${activeShelf.displayMode === 'table' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+                    title="Table view"
+                  >
+                    <Table className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                 </div>
               </div>
@@ -2101,9 +2455,115 @@ export default function App() {
                 <p className="text-sm opacity-75">Add your first book to get started!</p>
               </div>
             ) : (
-              <div className={`flex ${activeShelf?.displayMode === 'spines' ? 'flex-wrap gap-3 items-end' : 'flex-wrap gap-4'}`}>
-                {filteredBooks.map((book, index) => (
-                  activeShelf?.displayMode === 'spines' ? (
+              activeShelf?.displayMode === 'table' ? (
+                // Table View
+                <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+                  <div className="bg-indigo-600 text-white px-6 py-4 flex items-center justify-between">
+                    <h3 className="text-lg font-semibold">All Books - Table View</h3>
+                    <div className="flex gap-2">
+                      <label className="px-3 py-1.5 bg-white text-indigo-600 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-2 text-sm font-medium cursor-pointer">
+                        <FileUp className="w-4 h-4" />
+                        Import
+                        <input
+                          type="file"
+                          accept=".csv,.json"
+                          onChange={handleFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+                      <button
+                        onClick={exportToCSV}
+                        className="px-3 py-1.5 bg-white text-indigo-600 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-2 text-sm font-medium"
+                        title="Export to CSV"
+                      >
+                        <Download className="w-4 h-4" />
+                        CSV
+                      </button>
+                      <button
+                        onClick={exportToJSON}
+                        className="px-3 py-1.5 bg-white text-indigo-600 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-2 text-sm font-medium"
+                        title="Export to JSON"
+                      >
+                        <Download className="w-4 h-4" />
+                        JSON
+                      </button>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Title</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Author</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Bookshelf</th>
+                          <th className="px-4 py-3 text-center font-semibold text-gray-700 border-b">Rating</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Start Date</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Finish Date</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Description</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Favorite Character</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Scene Summary</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Memorable Moments</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Review</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Least Favorite Part</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {getAllBooksWithBookshelf().map((book, index) => (
+                          <tr 
+                            key={book.id || index}
+                            className="hover:bg-gray-50 border-b border-gray-100 cursor-pointer"
+                            onClick={() => { setSelectedBook(book); setShowDetailsModal(true); }}
+                          >
+                            <td className="px-4 py-3 font-medium text-gray-900">{book.title || '-'}</td>
+                            <td className="px-4 py-3 text-gray-700">{book.author || '-'}</td>
+                            <td className="px-4 py-3 text-gray-700">
+                              <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs">
+                                {book.bookshelfName || '-'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {book.rating > 0 ? (
+                                <div className="flex items-center justify-center gap-1">
+                                  <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                                  <span className="text-gray-700">{book.rating}</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600">{book.startDate || '-'}</td>
+                            <td className="px-4 py-3 text-gray-600">{book.finishDate || '-'}</td>
+                            <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={book.description || ''}>
+                              {book.description || '-'}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={book.favoriteCharacter || ''}>
+                              {book.favoriteCharacter || '-'}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={book.sceneSummary || ''}>
+                              {book.sceneSummary || '-'}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={book.memorableMoments || ''}>
+                              {book.memorableMoments || '-'}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={book.review || ''}>
+                              {book.review || '-'}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={book.leastFavoritePart || ''}>
+                              {book.leastFavoritePart || '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="bg-gray-50 px-6 py-3 text-sm text-gray-600 border-t">
+                    Total: {getAllBooksWithBookshelf().length} books across {bookshelves.length} bookshelves
+                  </div>
+                </div>
+              ) : (
+                <div className={`flex ${activeShelf?.displayMode === 'spines' ? 'flex-wrap gap-3 items-end' : 'flex-wrap gap-4'}`}>
+                  {filteredBooks.map((book, index) => (
+                    activeShelf?.displayMode === 'spines' ? (
                     <button
                       key={book.id}
                       onClick={() => { setSelectedBook(book); setShowDetailsModal(true); }}
@@ -2286,6 +2746,7 @@ export default function App() {
                   )
                 ))}
               </div>
+              )
             )}
           </div>
           <div className="mt-4 h-4 bg-black/20 rounded-b-xl"></div>
@@ -2314,13 +2775,13 @@ export default function App() {
             
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Search Book Title or Author *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Search Book Title, Author, or ISBN *</label>
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={handleSearchChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Type to search for books..."
+                  placeholder="Type to search for books by title, author, or ISBN..."
                 />
                 {isSearching && <p className="text-sm text-gray-500 mt-1">Searching...</p>}
               </div>
@@ -3449,6 +3910,9 @@ export default function App() {
                     const totalBooks = getTotalBooksRead(user.id);
                     const monthlyBooks = getBooksReadThisMonth(user.id);
                     const isCurrentUser = currentUser && user.id === currentUser.id;
+                    const profile = userProfiles[user.id];
+                    const displayName = profile?.name?.trim() || user.username || user.email || 'Unknown User';
+                    const avatar = profile?.avatar || '👤';
                     
                     return (
                       <tr
@@ -3458,10 +3922,10 @@ export default function App() {
                         }`}
                       >
                         <td className="py-4 px-4">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xl">👤</span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">{avatar}</span>
                             <span className={`font-medium ${isCurrentUser ? 'text-indigo-600' : 'text-gray-900'}`}>
-                              {user.username}
+                              {displayName}
                               {isCurrentUser && <span className="ml-2 text-xs text-indigo-500">(You)</span>}
                             </span>
                           </div>

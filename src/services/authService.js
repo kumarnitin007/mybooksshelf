@@ -16,10 +16,13 @@ import { supabase } from '../config/supabase';
  */
 export const signInWithEmail = async (email) => {
   try {
+    // Use current origin (works for both localhost and production)
+    const redirectUrl = `${window.location.origin}`;
+    
     const { data, error } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
       options: {
-        emailRedirectTo: `${window.location.origin}`,
+        emailRedirectTo: redirectUrl,
         shouldCreateUser: true
       }
     });
@@ -59,11 +62,14 @@ export const signInWithPassword = async (email, password) => {
  */
 export const signUpWithPassword = async (email, password) => {
   try {
+    // Use current origin (works for both localhost and production)
+    const redirectUrl = `${window.location.origin}`;
+    
     const { data, error } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password: password,
       options: {
-        emailRedirectTo: `${window.location.origin}`
+        emailRedirectTo: redirectUrl
       }
     });
 

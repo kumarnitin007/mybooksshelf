@@ -51,22 +51,18 @@ const AboutBookshelfModal = ({ show, onClose }) => {
           </button>
           {isAppsExpanded && (
             <div className="mt-4 space-y-4">
-              {/* Cipher Otto */}
-              <div className="bg-gradient-to-r from-purple-100 to-indigo-100 rounded-lg p-4 border border-purple-200">
-                <div className="mb-2">
-                  <h4 className="text-lg font-bold text-gray-900">🦦 Cipher Otto</h4>
-                </div>
-                <p className="text-gray-700 text-sm leading-relaxed">
-                  Your interactive cryptography learning platform! Learn, practice, and master various ciphers 
-                  with Otto's guidance. Explore historical ciphers, solve challenges, track your progress, and 
-                  join a community of cryptography enthusiasts.
-                </p>
-              </div>
-
               {/* Bookshelf */}
               <div className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-lg p-4 border border-amber-200">
-                <div className="mb-2">
+                <div className="mb-2 flex items-center justify-between">
                   <h4 className="text-lg font-bold text-gray-900">📚 Bookshelf</h4>
+                  <a 
+                    href="https://mybooksshelf.vercel.app/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 hover:text-indigo-800 text-sm font-medium underline"
+                  >
+                    Visit App →
+                  </a>
                 </div>
                 <p className="text-gray-700 text-sm leading-relaxed">
                   Your personal reading tracker and library organizer! Keep track of books you've read, want to read, 
@@ -75,10 +71,41 @@ const AboutBookshelfModal = ({ show, onClose }) => {
                 </p>
               </div>
 
+              {/* Cipher Otto */}
+              <div className="bg-gradient-to-r from-purple-100 to-indigo-100 rounded-lg p-4 border border-purple-200">
+                <div className="mb-2 flex items-center justify-between">
+                  <h4 className="text-lg font-bold text-gray-900">🦦 Cipher Otto</h4>
+                  <div className="flex gap-2">
+                    <a 
+                      href="https://cipher-otto.vercel.app/" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-purple-600 hover:text-purple-800 text-sm font-medium underline"
+                    >
+                      Beta →
+                    </a>
+                    <a 
+                      href="https://cipher-otto2.vercel.app/" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-purple-600 hover:text-purple-800 text-sm font-medium underline"
+                    >
+                      Stable →
+                    </a>
+                  </div>
+                </div>
+                <p className="text-gray-700 text-sm leading-relaxed">
+                  Your interactive cryptography learning platform! Learn, practice, and master various ciphers 
+                  with Otto's guidance. Explore historical ciphers, solve challenges, track your progress, and 
+                  join a community of cryptography enthusiasts.
+                </p>
+              </div>
+
               {/* Leo Planner */}
               <div className="bg-gradient-to-r from-blue-100 to-cyan-100 rounded-lg p-4 border border-blue-200">
-                <div className="mb-2">
+                <div className="mb-2 flex items-center justify-between">
                   <h4 className="text-lg font-bold text-gray-900">🦁 Leo Planner</h4>
+                  <span className="text-gray-500 text-sm">URL TBD</span>
                 </div>
                 <p className="text-gray-700 text-sm leading-relaxed">
                   Your personal task manager, event tracker, and gift card organizer. Keep track of your schedule, 
