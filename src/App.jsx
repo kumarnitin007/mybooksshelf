@@ -6,8 +6,12 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Book, Star, Calendar, User, Plus, X, Filter, Sparkles, ChevronDown, ChevronUp, Target, Settings, Grid, List, Heart, BookOpen, Edit2, Check, Upload, Image as ImageIcon, Info, Save, MessageSquare, Table, Download, FileUp, Library } from 'lucide-react';
+import { Search, Book, Star, Calendar, User, Plus, X, Filter, Sparkles, ChevronDown, ChevronUp, Target, Settings, Grid, List, Heart, BookOpen, Edit2, Check, Upload, Image as ImageIcon, Info, Save, MessageSquare, Table, Download, FileUp, Library, Trash2 } from 'lucide-react';
 import AboutBookshelfModal from './components/AboutBookshelfModal';
+import AvatarSelector from './components/AvatarSelector';
+import { ANIMAL_THEMES } from './constants/animalThemes';
+import { isAgeAppropriate } from './utils/contentFilter';
+import { formatDate, getBooksReadThisMonth as getBooksThisMonth, calculateAverageBooksPerMonth, findMostReadAuthor } from './utils/bookHelpers';
 
 // Import Supabase services
 import { 
@@ -70,137 +74,8 @@ import {
   unignoreSuggestion 
 } from './services/suggestionService';
 
-// Avatar Selector Component (inline)
-const AvatarSelectorInline = ({ currentAvatar, onSelect }) => {
-  const avatars = [
-    '📚', '🦦', '👦', '👧', '🧑', '👨', '👩', '👴', '👵',
-    '🦸', '🦹', '🧙', '🧚', '🧛', '🧜', '🧝', '🧞',
-    '🐱', '🐶', '🐰', '🐻', '🐼', '🐨', '🐯', '🦁',
-    '🐸', '🐷', '🐮', '🐹', '🐭', '🦊', '🐺',
-    '🎃', '👻', '🤖', '👽', '👾', '🤡', '💀', '☠️',
-    '🦄', '🐉', '🐲', '🦋', '🐝', '🐞', '🦗', '🕷️',
-    '🌞', '⭐', '🌟', '💫', '✨', '🔥', '💧', '⚡',
-    '🎮', '🎯', '🎲', '🎨', '🎭', '🎪', '🎬', '🎤'
-  ];
-
-  const [selected, setSelected] = useState(currentAvatar || '📚');
-
-  useEffect(() => {
-    setSelected(currentAvatar || '📚');
-  }, [currentAvatar]);
-
-  const handleSelect = (avatar) => {
-    setSelected(avatar);
-    onSelect(avatar);
-  };
-
-  return (
-    <div className="space-y-3">
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        Choose Your Avatar
-      </label>
-      <div className="grid grid-cols-8 gap-2 max-h-64 overflow-y-auto p-3 bg-gray-50 rounded-lg border border-gray-200">
-        {avatars.map((avatar, index) => (
-          <button
-            key={index}
-            onClick={() => handleSelect(avatar)}
-            className={`w-10 h-10 rounded-full text-2xl flex items-center justify-center transition-all transform hover:scale-110 relative ${
-              selected === avatar
-                ? 'bg-yellow-400 ring-2 ring-yellow-300 ring-offset-2 ring-offset-gray-50'
-                : 'bg-white hover:bg-gray-100 border border-gray-200'
-            }`}
-            title={`Select ${avatar}`}
-          >
-            {avatar}
-            {selected === avatar && (
-              <div className="absolute -top-1 -right-1 bg-green-500 rounded-full p-0.5">
-                <Check size={12} className="text-white" />
-              </div>
-            )}
-          </button>
-        ))}
-      </div>
-      <div className="text-xs text-gray-500 text-center">
-        Click an emoji to select it as your avatar
-      </div>
-    </div>
-  );
-};
-
-// TODO: Remove this and use the imported version from constants/animalThemes.js
-// import { ANIMAL_THEMES } from './constants/animalThemes';
-const ANIMAL_THEMES = {
-  cat: { 
-    name: 'Cat', 
-    emoji: '🐱', 
-    colors: { primary: 'from-pink-500 to-rose-500', secondary: 'bg-pink-100', accent: 'text-pink-600' },
-    decorations: ['🐱', '🐾', '💕', '⭐'],
-    animation: 'float'
-  },
-  dog: { 
-    name: 'Dog', 
-    emoji: '🐶', 
-    colors: { primary: 'from-amber-500 to-orange-500', secondary: 'bg-amber-100', accent: 'text-amber-600' },
-    decorations: ['🐶', '🦴', '🎾', '⭐'],
-    animation: 'bounce'
-  },
-  bunny: { 
-    name: 'Bunny', 
-    emoji: '🐰', 
-    colors: { primary: 'from-purple-500 to-indigo-500', secondary: 'bg-purple-100', accent: 'text-purple-600' },
-    decorations: ['🐰', '🥕', '🌸', '✨'],
-    animation: 'hop'
-  },
-  bear: { 
-    name: 'Bear', 
-    emoji: '🐻', 
-    colors: { primary: 'from-brown-500 to-amber-800', secondary: 'bg-amber-100', accent: 'text-amber-700' },
-    decorations: ['🐻', '🍯', '🌲', '⭐'],
-    animation: 'sway'
-  },
-  panda: { 
-    name: 'Panda', 
-    emoji: '🐼', 
-    colors: { primary: 'from-gray-600 to-gray-800', secondary: 'bg-gray-100', accent: 'text-gray-700' },
-    decorations: ['🐼', '🎋', '🍃', '⭐'],
-    animation: 'float'
-  },
-  fox: { 
-    name: 'Fox', 
-    emoji: '🦊', 
-    colors: { primary: 'from-orange-500 to-red-500', secondary: 'bg-orange-100', accent: 'text-orange-600' },
-    decorations: ['🦊', '🍇', '🍂', '✨'],
-    animation: 'dash'
-  },
-  owl: { 
-    name: 'Owl', 
-    emoji: '🦉', 
-    colors: { primary: 'from-yellow-600 to-amber-600', secondary: 'bg-yellow-100', accent: 'text-yellow-700' },
-    decorations: ['🦉', '🌙', '⭐', '✨'],
-    animation: 'glide'
-  },
-  penguin: { 
-    name: 'Penguin', 
-    emoji: '🐧', 
-    colors: { primary: 'from-blue-600 to-indigo-600', secondary: 'bg-blue-100', accent: 'text-blue-600' },
-    decorations: ['🐧', '❄️', '🌊', '⭐'],
-    animation: 'slide'
-  },
-  heart: { 
-    name: 'Heart', 
-    emoji: '❤️', 
-    colors: { primary: 'from-red-500 to-pink-500', secondary: 'bg-red-100', accent: 'text-red-600' },
-    decorations: ['❤️', '💕', '✨', '⭐'],
-    animation: 'pulse'
-  },
-  sparkles: { 
-    name: 'Sparkles', 
-    emoji: '✨', 
-    colors: { primary: 'from-purple-500 to-pink-500', secondary: 'bg-purple-100', accent: 'text-purple-600' },
-    decorations: ['✨', '⭐', '💫', '🌟'],
-    animation: 'sparkle'
-  },
-};
+// AvatarSelector component - now imported from components/AvatarSelector.jsx
+// ANIMAL_THEMES constant - now imported from constants/animalThemes.js
 
 export default function App() {
   const [bookshelves, setBookshelves] = useState([]);
@@ -929,32 +804,7 @@ export default function App() {
   };
 
 
-  // Content filter to ensure all suggestions are age-appropriate for teens
-  const isAgeAppropriate = (title, author) => {
-    // List of books that are not appropriate for teens (mature content, sexual themes, etc.)
-    const inappropriateBooks = [
-      { title: "The Seven Husbands of Evelyn Hugo", author: "Taylor Jenkins Reid" },
-      { title: "The Handmaid's Tale", author: "Margaret Atwood" },
-      { title: "The Kite Runner", author: "Khaled Hosseini" },
-      { title: "The Song of Achilles", author: "Madeline Miller" },
-      { title: "Circe", author: "Madeline Miller" },
-      { title: "Where the Crawdads Sing", author: "Delia Owens" },
-      { title: "Educated", author: "Tara Westover" },
-      { title: "Fifty Shades of Grey", author: "E.L. James" },
-      { title: "Lolita", author: "Vladimir Nabokov" },
-      { title: "American Psycho", author: "Bret Easton Ellis" },
-      { title: "The Girl with the Dragon Tattoo", author: "Stieg Larsson" },
-      { title: "Gone Girl", author: "Gillian Flynn" },
-      { title: "The Girl on the Train", author: "Paula Hawkins" },
-      { title: "Fight Club", author: "Chuck Palahniuk" },
-      { title: "A Clockwork Orange", author: "Anthony Burgess" }
-    ];
-    
-    return !inappropriateBooks.some(book => 
-      book.title.toLowerCase() === title.toLowerCase() && 
-      book.author.toLowerCase() === author.toLowerCase()
-    );
-  };
+  // isAgeAppropriate function - now imported from utils/contentFilter.js
 
   const searchBooks = async (query) => {
     if (!query.trim()) {
@@ -1436,6 +1286,53 @@ export default function App() {
     setEditingBookshelfName('');
   };
 
+  const handleDeleteBookshelf = async (bookshelfId) => {
+    const bookshelf = bookshelves.find(s => s.id === bookshelfId);
+    if (!bookshelf) return;
+
+    // Check if bookshelf has books
+    if (bookshelf.books && bookshelf.books.length > 0) {
+      alert(`Cannot delete bookshelf "${bookshelf.name}". Please remove all books from this bookshelf before deleting it.`);
+      return;
+    }
+
+    // Confirm deletion
+    if (!confirm(`Are you sure you want to delete "${bookshelf.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      // Delete from database
+      const result = await deleteBookshelf(bookshelfId);
+      
+      if (result.error) {
+        console.error('Error deleting bookshelf from database:', result.error);
+        alert(`Error deleting bookshelf: ${result.error.message || 'Unknown error'}`);
+        return;
+      }
+
+      // Update local state
+      const updatedBookshelves = bookshelves.filter(s => s.id !== bookshelfId);
+      setBookshelves(updatedBookshelves);
+      
+      // If we deleted the active bookshelf, switch to the first available one
+      if (activeBookshelfIndex >= updatedBookshelves.length) {
+        setActiveBookshelfIndex(Math.max(0, updatedBookshelves.length - 1));
+      } else {
+        // Adjust index if needed
+        const deletedIndex = bookshelves.findIndex(s => s.id === bookshelfId);
+        if (deletedIndex < activeBookshelfIndex) {
+          setActiveBookshelfIndex(activeBookshelfIndex - 1);
+        }
+      }
+      
+      saveActiveIndex();
+    } catch (error) {
+      console.error('Error deleting bookshelf:', error);
+      alert(`Error deleting bookshelf: ${error.message || 'Unknown error'}`);
+    }
+  };
+
   const handleUpdateBook = async (bookId, updates) => {
     try {
       // If updating cover image, delete old image from storage
@@ -1865,15 +1762,10 @@ export default function App() {
   };
 
 
+  // getCurrentUserBooksReadThisMonth - now using imported utility from utils/bookHelpers.js
   const getCurrentUserBooksReadThisMonth = () => {
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-    const allBooks = bookshelves.flatMap(shelf => shelf.books);
-    return allBooks.filter(book => {
-      if (!book.finishDate) return false;
-      const finishDate = new Date(book.finishDate);
-      return finishDate.getMonth() === currentMonth && finishDate.getFullYear() === currentYear;
-    }).length;
+    const allBooks = bookshelves.flatMap(shelf => shelf.books || []);
+    return getBooksThisMonth(allBooks);
   };
 
   const getMostReadAuthor = () => {
@@ -2437,14 +2329,6 @@ export default function App() {
                 <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
                 <span className="hidden sm:inline">Recommendations</span>
               </button>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg sm:rounded-xl hover:from-indigo-700 hover:to-blue-700 transition-all shadow-md text-xs sm:text-base"
-                title="Add Book"
-              >
-                <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline">Add Book</span>
-              </button>
             </div>
           </div>
         </div>
@@ -2622,8 +2506,15 @@ export default function App() {
               ⭐ Favorites ({getFavoritesBookshelf()?.books.length || 0})
             </button>
             <button
+              onClick={() => setShowAddModal(true)}
+              className="ml-auto px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg font-medium hover:from-indigo-700 hover:to-blue-700"
+            >
+              <Plus className="w-4 h-4 inline mr-1" />
+              Add Book
+            </button>
+            <button
               onClick={createNewBookshelf}
-              className="ml-auto px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700"
+              className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700"
             >
               <Plus className="w-4 h-4 inline mr-1" />
               New Bookshelf
@@ -2694,6 +2585,15 @@ export default function App() {
                   >
                     <Edit2 className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
+                  {activeShelf && activeShelf.type === 'regular' && (
+                    <button
+                      onClick={() => handleDeleteBookshelf(activeShelf.id)}
+                      className="px-2 sm:px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex-shrink-0"
+                      title="Delete bookshelf"
+                    >
+                      <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </button>
+                  )}
                 </div>
               )}
               
@@ -3495,49 +3395,108 @@ export default function App() {
                       </button>
                     ))}
                   </div>
-                  {(selectedBook.startDate || selectedBook.finishDate) && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                      <Calendar className="w-4 h-4" />
-                      {selectedBook.startDate && <span>Started: {selectedBook.startDate}</span>}
-                      {selectedBook.finishDate && <span>Finished: {selectedBook.finishDate}</span>}
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                      <input
+                        type="date"
+                        value={selectedBook.startDate || ''}
+                        onChange={(e) => {
+                          const updates = { startDate: e.target.value || null };
+                          handleUpdateBook(selectedBook.id, updates);
+                          setSelectedBook({ ...selectedBook, ...updates });
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                      />
                     </div>
-                  )}
-                  {selectedBook.description && (
-                    <p className="text-sm text-gray-700 mt-4">{selectedBook.description}</p>
-                  )}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Finish Date</label>
+                      <input
+                        type="date"
+                        value={selectedBook.finishDate || ''}
+                        onChange={(e) => {
+                          const updates = { finishDate: e.target.value || null };
+                          handleUpdateBook(selectedBook.id, updates);
+                          setSelectedBook({ ...selectedBook, ...updates });
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <textarea
+                      value={selectedBook.description || ''}
+                      onChange={(e) => {
+                        const updates = { description: e.target.value };
+                        handleUpdateBook(selectedBook.id, updates);
+                        setSelectedBook({ ...selectedBook, ...updates });
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm h-20"
+                      placeholder="Book description"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {selectedBook.favoriteCharacter && (
-                <div className="mb-4">
-                  <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                    <Heart className="w-5 h-5 text-pink-500" />
-                    Favorite Character
-                  </h3>
-                  <p className="text-gray-700 bg-pink-50 p-3 rounded-lg">{selectedBook.favoriteCharacter}</p>
-                </div>
-              )}
+              <div className="mb-4">
+                <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                  <Heart className="w-5 h-5 text-pink-500" />
+                  Favorite Character
+                </h3>
+                <textarea
+                  value={selectedBook.favoriteCharacter || ''}
+                  onChange={(e) => {
+                    const updates = { favoriteCharacter: e.target.value };
+                    handleUpdateBook(selectedBook.id, updates);
+                    setSelectedBook({ ...selectedBook, ...updates });
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-pink-50 h-24"
+                  placeholder="Your favorite character from the book"
+                />
+              </div>
 
-              {selectedBook.sceneSummary && (
-                <div className="mb-4">
-                  <h3 className="font-semibold text-gray-900 mb-2">Scene Summary</h3>
-                  <p className="text-gray-700 bg-purple-50 p-3 rounded-lg">{selectedBook.sceneSummary}</p>
-                </div>
-              )}
+              <div className="mb-4">
+                <h3 className="font-semibold text-gray-900 mb-2">Scene Summary</h3>
+                <textarea
+                  value={selectedBook.sceneSummary || ''}
+                  onChange={(e) => {
+                    const updates = { sceneSummary: e.target.value };
+                    handleUpdateBook(selectedBook.id, updates);
+                    setSelectedBook({ ...selectedBook, ...updates });
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-purple-50 h-24"
+                  placeholder="Memorable scene or summary"
+                />
+              </div>
 
-              {selectedBook.memorableMoments && (
-                <div className="mb-4">
-                  <h3 className="font-semibold text-gray-900 mb-2">Memorable Moments</h3>
-                  <p className="text-gray-700 bg-blue-50 p-3 rounded-lg">{selectedBook.memorableMoments}</p>
-                </div>
-              )}
+              <div className="mb-4">
+                <h3 className="font-semibold text-gray-900 mb-2">Memorable Moments</h3>
+                <textarea
+                  value={selectedBook.memorableMoments || ''}
+                  onChange={(e) => {
+                    const updates = { memorableMoments: e.target.value };
+                    handleUpdateBook(selectedBook.id, updates);
+                    setSelectedBook({ ...selectedBook, ...updates });
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-blue-50 h-24"
+                  placeholder="Memorable moments from the book"
+                />
+              </div>
 
-              {selectedBook.review && (
-                <div className="mb-4">
-                  <h3 className="font-semibold text-gray-900 mb-2">Review</h3>
-                  <p className="text-gray-700 bg-green-50 p-3 rounded-lg">{selectedBook.review}</p>
-                </div>
-              )}
+              <div className="mb-4">
+                <h3 className="font-semibold text-gray-900 mb-2">Review</h3>
+                <textarea
+                  value={selectedBook.review || ''}
+                  onChange={(e) => {
+                    const updates = { review: e.target.value };
+                    handleUpdateBook(selectedBook.id, updates);
+                    setSelectedBook({ ...selectedBook, ...updates });
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-green-50 h-24"
+                  placeholder="Your review of the book"
+                />
+              </div>
 
               {selectedBook.rating <= 2 && selectedBook.rating > 0 && (
                 <div className="mb-4">
@@ -3786,7 +3745,7 @@ export default function App() {
                 </button>
                 {showAvatarSelector && (
                   <div className="mt-4">
-                    <AvatarSelectorInline
+                    <AvatarSelector
                       currentAvatar={userProfile.avatar || '📚'}
                       onSelect={(newAvatar) => setUserProfile({ ...userProfile, avatar: newAvatar })}
                     />
