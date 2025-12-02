@@ -6,12 +6,28 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Book, Star, Calendar, User, Plus, X, Filter, Sparkles, ChevronDown, ChevronUp, Target, Settings, Grid, List, Heart, BookOpen, Edit2, Check, Upload, Image as ImageIcon, Info, Save, MessageSquare, Table, Download, FileUp, Library, Trash2 } from 'lucide-react';
+import { Search, Book, Star, Calendar, User, Plus, X, Filter, Sparkles, ChevronDown, Target, Grid, List, Heart, Edit2, Check, Info, Table, Download, FileUp, Trash2 } from 'lucide-react';
 import AboutBookshelfModal from './components/AboutBookshelfModal';
 import AvatarSelector from './components/AvatarSelector';
+import LevelUpModal from './components/modals/LevelUpModal';
+import AchievementModal from './components/modals/AchievementModal';
+import MoveBookModal from './components/modals/MoveBookModal';
+import RecommendationsModal from './components/modals/RecommendationsModal';
+import UserComparisonModal from './components/modals/UserComparisonModal';
+import AddBookModal from './components/modals/AddBookModal';
+import BookDetailsModal from './components/modals/BookDetailsModal';
+import LoginModal from './components/modals/LoginModal';
+import ProfileModal from './components/modals/ProfileModal';
+import Header from './components/layout/Header';
+import UserStatsSection from './components/layout/UserStatsSection';
+import BookshelfDisplay from './components/bookshelf/BookshelfDisplay';
 import { ANIMAL_THEMES } from './constants/animalThemes';
 import { isAgeAppropriate } from './utils/contentFilter';
-import { formatDate, getBooksReadThisMonth as getBooksThisMonth, calculateAverageBooksPerMonth, findMostReadAuthor } from './utils/bookHelpers';
+import { getBooksReadThisMonth as getBooksThisMonth, calculateAverageBooksPerMonth, findMostReadAuthor } from './utils/bookHelpers';
+import { useAuth } from './hooks/useAuth';
+import { useGamification } from './hooks/useGamification';
+import { useBookshelfData } from './hooks/useBookshelfData';
+import { useUserData } from './hooks/useUserData';
 
 // Import Supabase services
 import { 
@@ -50,37 +66,32 @@ import {
   getUserBookshelves
 } from './services/bookshelfService';
 import {
-  getUserXP,
-  addXP,
-  getUserStreak,
-  updateReadingStreak,
-  getAchievements,
-  awardAchievement,
-  getUserRewards,
-  unlockReward,
-  getChallenges,
-  createChallenge,
-  updateChallengeProgress,
-  getBookQuizzes,
-  submitQuizAnswer,
-  getBookFacts,
-  getUserStories,
-  createStory,
-  getReadingReports
+  getUserXP
 } from './services/gamificationService';
 import { 
   getIgnoredSuggestions, 
-  ignoreSuggestion as ignoreSuggestionService,
-  unignoreSuggestion 
+  ignoreSuggestion as ignoreSuggestionService
 } from './services/suggestionService';
 
-// AvatarSelector component - now imported from components/AvatarSelector.jsx
-// ANIMAL_THEMES constant - now imported from constants/animalThemes.js
 
 export default function App() {
-  const [bookshelves, setBookshelves] = useState([]);
-  const [activeBookshelfIndex, setActiveBookshelfIndex] = useState(0);
-  const isUpdatingRef = useRef(false); // Prevent loadData from overwriting during updates
+  // Use custom hooks for state management
+  const auth = useAuth();
+  const {
+    currentUser,
+    setCurrentUser,
+    authUser,
+    setAuthUser,
+    users,
+    setUsers,
+    showLoginModal,
+    setShowLoginModal,
+    defaultUser,
+    isVerifying,
+    setIsVerifying,
+    emailSent,
+    setEmailSent
+  } = auth;
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showRecommendations, setShowRecommendations] = useState(false);
@@ -109,21 +120,12 @@ export default function App() {
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
   const [recommendations, setRecommendations] = useState([]);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
-  const [userProfile, setUserProfile] = useState({
-    name: '',
-    monthlyTarget: 0,
-    avatar: '📚',
-    bio: '',
-    feedback: '',
-    hideFromComparison: false
-  });
   const [showAvatarSelector, setShowAvatarSelector] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState('');
   const [profileSuccess, setProfileSuccess] = useState('');
   const [isEditingBookshelfName, setIsEditingBookshelfName] = useState(false);
   const [editingBookshelfName, setEditingBookshelfName] = useState('');
-  const [ignoredSuggestions, setIgnoredSuggestions] = useState([]);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [bookToMove, setBookToMove] = useState(null);
   const [showAboutModal, setShowAboutModal] = useState(false);
@@ -132,214 +134,77 @@ export default function App() {
   const imageRetryCountsRef = useRef({}); // Use ref to avoid re-renders during retries
   const failedImagesRef = useRef(new Set()); // Use ref to avoid re-renders during retries
   const pendingFailedUpdatesRef = useRef(new Set()); // Track pending failed images to batch update
-  const [currentUser, setCurrentUser] = useState(null); // Current logged in user (from bk_users table)
-  const [authUser, setAuthUser] = useState(null); // Supabase auth user
-  const [users, setUsers] = useState([]); // All users in the app
-  const [userProfiles, setUserProfiles] = useState({}); // Map of userId -> profile data
-  const [userStats, setUserStats] = useState({}); // Map of userId -> {totalBooks, monthlyBooks}
-  const [showLoginModal, setShowLoginModal] = useState(false);
+  // UI state
   const [showUserComparison, setShowUserComparison] = useState(false);
-  const [loadingUserStats, setLoadingUserStats] = useState(false);
   const [encouragingMessage, setEncouragingMessage] = useState('');
-  // Gamification state
-  const [userXP, setUserXP] = useState(null);
-  const [userStreak, setUserStreak] = useState(null);
-  const [recentAchievements, setRecentAchievements] = useState([]);
-  const [userRewards, setUserRewards] = useState([]);
-  const [showLevelUpModal, setShowLevelUpModal] = useState(false);
-  const [levelUpData, setLevelUpData] = useState(null);
-  const [showAchievementModal, setShowAchievementModal] = useState(false);
-  const [newAchievement, setNewAchievement] = useState(null);
-  const [showStoryModal, setShowStoryModal] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loginMode, setLoginMode] = useState('password'); // 'password' or 'magiclink'
+  const [passwordMode, setPasswordMode] = useState('login'); // 'login' or 'signup'
+  
+  // User data hook
+  const userData = useUserData(currentUser);
+  const {
+    userProfile,
+    setUserProfile,
+    ignoredSuggestions,
+    setIgnoredSuggestions,
+    userProfiles,
+    setUserProfiles,
+    userStats,
+    setUserStats,
+    loadingUserStats,
+    setLoadingUserStats,
+    loadUserProfile
+  } = userData;
+  
+  // Bookshelf state (needed before gamification hook)
+  const [bookshelves, setBookshelves] = useState([]);
+  const [activeBookshelfIndex, setActiveBookshelfIndex] = useState(0);
+  const isUpdatingRef = useRef(false);
+  
+  // Gamification hook (depends on bookshelves)
+  const gamification = useGamification(currentUser, bookshelves);
+  const {
+    userXP,
+    setUserXP,
+    userStreak,
+    setUserStreak,
+    recentAchievements,
+    setRecentAchievements,
+    userRewards,
+    challenges,
+    setChallenges,
+    showLevelUpModal,
+    setShowLevelUpModal,
+    levelUpData,
+    setLevelUpData,
+    showAchievementModal,
+    setShowAchievementModal,
+    newAchievement,
+    setNewAchievement,
+    loadGamificationData,
+    checkAchievements,
+    handleBookFinished
+  } = gamification;
+  
+  // Unused modal states (kept for future features)
   const [showChallengeModal, setShowChallengeModal] = useState(false);
   const [showQuizModal, setShowQuizModal] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
   const [showCustomizationModal, setShowCustomizationModal] = useState(false);
-  const [challenges, setChallenges] = useState([]);
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [emailSent, setEmailSent] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [loginMode, setLoginMode] = useState('password'); // 'password' or 'magiclink'
-  const [passwordMode, setPasswordMode] = useState('login'); // 'login' or 'signup'
-  const [defaultUser, setDefaultUser] = useState(null); // Default user for unverified access
-
-  // Initialize auth and load default user
-  useEffect(() => {
-    initializeAuth();
-  }, []);
 
   // Load data when user changes
   useEffect(() => {
     if (currentUser) {
       loadData();
+      loadUserProfile();
     }
   }, [currentUser]);
 
-  // Listen to auth state changes
-  useEffect(() => {
-    const { data: { subscription } } = onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user?.email);
-      
-      if (event === 'SIGNED_IN' && session?.user) {
-        const verified = isEmailVerified(session.user);
-        if (verified) {
-          // User is verified, get/create app user
-          const { data: appUser, error } = await getOrCreateAppUser(session.user.id, session.user.email);
-          if (appUser && !error) {
-            setAuthUser(session.user);
-            setCurrentUser(appUser);
-            setShowLoginModal(false);
-            setEmailSent(false);
-          }
-        } else {
-          // Email not verified yet, keep using default user
-          console.log('Email not verified yet, using default user');
-        }
-      } else if (event === 'SIGNED_OUT') {
-        setAuthUser(null);
-        setCurrentUser(defaultUser);
-        setShowLoginModal(true);
-      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-        const verified = isEmailVerified(session.user);
-        if (verified) {
-          const { data: appUser } = await getOrCreateAppUser(session.user.id, session.user.email);
-          if (appUser) {
-            setAuthUser(session.user);
-            setCurrentUser(appUser);
-          }
-        }
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [defaultUser]);
-
-  // Test connection on mount (for debugging)
-  useEffect(() => {
-    // Uncomment the line below to test connection on app load
-    // import('./config/supabase').then(({ testConnection }) => testConnection().then(result => console.log('DB Connection Test:', result)));
-  }, []);
-
-  const initializeAuth = async () => {
-    try {
-      console.log('Initializing auth...');
-      // First, load default user for unverified access
-      const loadedDefaultUser = await loadDefaultUser();
-      console.log('Loaded default user:', loadedDefaultUser?.username || 'none');
-
-      // Check for existing auth session
-      const { user: sessionUser, session } = await getCurrentSession();
-      
-      if (sessionUser && isEmailVerified(sessionUser)) {
-        // User is authenticated and verified
-        const { data: appUser, error } = await getOrCreateAppUser(sessionUser.id, sessionUser.email);
-        if (appUser && !error) {
-          setAuthUser(sessionUser);
-          setCurrentUser(appUser);
-          setShowLoginModal(false);
-        } else {
-          // Fallback to default user if app user creation fails
-          console.error('Error getting app user:', error);
-          if (loadedDefaultUser) {
-            setCurrentUser(loadedDefaultUser);
-            setDefaultUser(loadedDefaultUser);
-          } else if (defaultUser) {
-            setCurrentUser(defaultUser);
-          }
-        }
-      } else if (sessionUser && !isEmailVerified(sessionUser)) {
-        // User signed in but email not verified - use default user
-        console.log('Email not verified, using default user');
-        setIsVerifying(true);
-        if (loadedDefaultUser) {
-          setCurrentUser(loadedDefaultUser);
-          setDefaultUser(loadedDefaultUser);
-        } else if (defaultUser) {
-          setCurrentUser(defaultUser);
-        }
-        setShowLoginModal(true);
-      } else {
-        // No auth session - use default user
-        if (loadedDefaultUser) {
-          setCurrentUser(loadedDefaultUser);
-          setDefaultUser(loadedDefaultUser);
-        } else if (defaultUser) {
-          setCurrentUser(defaultUser);
-        }
-        setShowLoginModal(true);
-      }
-
-      // Load all users for comparison
-      const { data: allUsers } = await getAllUsers();
-      setUsers(allUsers || []);
-    } catch (error) {
-      console.error('Error initializing auth:', error);
-      // Ensure we always have a user to prevent infinite loading
-      if (defaultUser) {
-        setCurrentUser(defaultUser);
-      } else {
-        // Last resort: create a temporary user object to prevent infinite loading
-        console.warn('No default user available, creating temporary user');
-        const tempUser = { id: 'temp', username: 'Guest' };
-        setCurrentUser(tempUser);
-        setDefaultUser(tempUser);
-      }
-    }
-  };
-
-  const loadDefaultUser = async () => {
-    try {
-      console.log('Loading default user...');
-      const defaultUsername = 'Default User';
-      const { data: fetchedUser, error: fetchError } = await getUserByUsername(defaultUsername);
-      
-      if (fetchError) {
-        console.warn('Error fetching default user:', fetchError);
-      }
-      
-      if (fetchedUser) {
-        console.log('Default user found:', fetchedUser.username);
-        setDefaultUser(fetchedUser);
-        return fetchedUser;
-      }
-
-      // Try to get any existing user as fallback
-      console.log('Default user not found, checking for any existing users...');
-      const { data: allUsers, error: allUsersError } = await getAllUsers();
-      
-      if (allUsersError) {
-        console.warn('Error fetching all users:', allUsersError);
-      }
-      
-      if (allUsers && allUsers.length > 0) {
-        console.log('Found existing user:', allUsers[0].username);
-        setDefaultUser(allUsers[0]);
-        return allUsers[0];
-      }
-
-      // If no users exist, create a default user
-      console.log('No users found, creating default user...');
-      const { data: newUser, error: createError } = await createUser(defaultUsername);
-      if (newUser && !createError) {
-        console.log('Default user created successfully:', newUser.username);
-        setDefaultUser(newUser);
-        return newUser;
-      } else {
-        console.error('Error creating default user:', createError);
-      }
-
-      console.warn('Could not load or create default user');
-      return null;
-    } catch (error) {
-      console.error('Error loading default user:', error);
-      return null;
-    }
-  };
+  // initializeAuth and loadDefaultUser are now handled by useAuth hook
 
   const loadUsers = async () => {
     try {
@@ -401,104 +266,7 @@ export default function App() {
     }
   };
 
-  // Load gamification data
-  const loadGamificationData = async () => {
-    if (!currentUser) return;
-    
-    try {
-      // Load XP
-      const { data: xpData } = await getUserXP(currentUser.id);
-      if (xpData) setUserXP(xpData);
-
-      // Load streak
-      const { data: streakData } = await getUserStreak(currentUser.id);
-      if (streakData) setUserStreak(streakData);
-
-      // Load recent achievements
-      const { data: achievements } = await getAchievements(currentUser.id, 5);
-      if (achievements) setRecentAchievements(achievements);
-
-      // Load rewards
-      const { data: rewards } = await getUserRewards(currentUser.id);
-      if (rewards) setUserRewards(rewards);
-
-      // Load challenges
-      const { data: challengesData } = await getChallenges(currentUser.id);
-      if (challengesData) setChallenges(challengesData);
-    } catch (error) {
-      console.error('Error loading gamification data:', error);
-    }
-  };
-
-  // Check and award achievements
-  const checkAchievements = async (userId, bookshelves) => {
-    try {
-      const allBooks = bookshelves.flatMap(shelf => shelf.books || []);
-      const totalBooks = allBooks.length;
-      const finishedBooks = allBooks.filter(b => b.finishDate);
-      const booksThisMonth = finishedBooks.filter(b => {
-        const finishDate = new Date(b.finishDate);
-        const now = new Date();
-        return finishDate.getMonth() === now.getMonth() && finishDate.getFullYear() === now.getFullYear();
-      }).length;
-
-      // First book achievement
-      if (totalBooks === 1) {
-        const result = await awardAchievement(userId, 'first_book', 'First Book', '🎉', 'Read your first book!');
-        if (result.data && !result.alreadyEarned) {
-          setNewAchievement(result.data);
-          setShowAchievementModal(true);
-          await addXP(userId, 50, 'First book achievement');
-        }
-      }
-
-      // 10 books achievement
-      if (totalBooks === 10) {
-        const result = await awardAchievement(userId, 'ten_books', 'Bookworm', '📚', 'Read 10 books!');
-        if (result.data && !result.alreadyEarned) {
-          setNewAchievement(result.data);
-          setShowAchievementModal(true);
-          await addXP(userId, 100, '10 books achievement');
-        }
-      }
-
-      // Speed reader (5 books in a month)
-      if (booksThisMonth >= 5) {
-        const result = await awardAchievement(userId, 'speed_reader', 'Speed Reader', '⚡', 'Read 5 books in a month!');
-        if (result.data && !result.alreadyEarned) {
-          setNewAchievement(result.data);
-          setShowAchievementModal(true);
-          await addXP(userId, 150, 'Speed reader achievement');
-        }
-      }
-
-      // Streak achievements
-      if (userStreak) {
-        if (userStreak.current_streak === 7) {
-          const result = await awardAchievement(userId, 'streak_7', 'Week Warrior', '🔥', '7 day reading streak!');
-          if (result.data && !result.alreadyEarned) {
-            setNewAchievement(result.data);
-            setShowAchievementModal(true);
-            await addXP(userId, 75, '7 day streak achievement');
-          }
-        }
-        if (userStreak.current_streak === 30) {
-          const result = await awardAchievement(userId, 'streak_30', 'Monthly Master', '🌟', '30 day reading streak!');
-          if (result.data && !result.alreadyEarned) {
-            setNewAchievement(result.data);
-            setShowAchievementModal(true);
-            await addXP(userId, 200, '30 day streak achievement');
-          }
-        }
-      }
-
-      // Reload achievements after awarding
-      const { data: achievements } = await getAchievements(userId, 5);
-      if (achievements) setRecentAchievements(achievements);
-    } catch (error) {
-      console.error('Error checking achievements:', error);
-    }
-  };
+  // loadGamificationData and checkAchievements are now provided by useGamification hook
 
   const loadData = async () => {
     if (!currentUser || isUpdatingRef.current) return;
@@ -1375,41 +1143,9 @@ export default function App() {
       }));
       setBookshelves(updatedBookshelves);
 
-      // Gamification: Award XP and update streak when book is finished
-      if (isFinishingBook && currentUser) {
-        // Award XP for finishing a book
-        const xpAmount = 50; // Base XP for finishing a book
-        const { data: xpResult, leveledUp, newLevel } = await addXP(currentUser.id, xpAmount, 'Finished a book');
-        if (xpResult) {
-          setUserXP(xpResult);
-          if (leveledUp) {
-            setLevelUpData({ level: newLevel, xp: xpResult.total_xp });
-            setShowLevelUpModal(true);
-          }
-        }
-
-        // Update reading streak
-        const { data: streakResult } = await updateReadingStreak(currentUser.id, updates.finishDate);
-        if (streakResult) {
-          setUserStreak(streakResult);
-        }
-
-        // Check achievements
-        await checkAchievements(currentUser.id, updatedBookshelves);
-
-        // Update challenge progress
-        if (challenges.length > 0) {
-          const activeChallenges = challenges.filter(c => !c.is_completed && 
-            new Date(c.end_date) >= new Date() && 
-            new Date(c.start_date) <= new Date()
-          );
-          for (const challenge of activeChallenges) {
-            await updateChallengeProgress(challenge.id, bookId);
-          }
-          // Reload challenges
-          const { data: updatedChallenges } = await getChallenges(currentUser.id);
-          if (updatedChallenges) setChallenges(updatedChallenges);
-        }
+      // Gamification: Award XP and update streak when book is finished (using hook)
+      if (isFinishingBook && handleBookFinished) {
+        await handleBookFinished(bookId, updates.finishDate);
       }
     } catch (error) {
       console.error('Error updating book:', error);
@@ -2275,186 +2011,34 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-red-50">
       {/* Header */}
-      <div className="bg-white shadow-lg border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-2 sm:px-4 py-3 sm:py-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
-            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-              <div className={`bg-gradient-to-br ${theme.colors.primary} p-2 sm:p-3 rounded-xl flex items-center justify-center`}>
-                <span className="text-2xl sm:text-4xl">📚</span>
-              </div>
-              <div>
-                <h1 className="text-xl sm:text-3xl font-bold text-gray-900">My Bookshelf</h1>
-                <p className="text-xs sm:text-base text-gray-600">{allBooks.length} books</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-1.5 sm:gap-3 w-full sm:w-auto justify-end">
-              {currentUser && (
-                <button
-                  onClick={async () => {
-                    setShowUserComparison(true);
-                    // Load profiles and stats for all users when opening comparison
-                    await Promise.all([
-                      loadUserProfiles(),
-                      loadUserStats()
-                    ]);
-                  }}
-                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-500 text-white rounded-lg sm:rounded-xl hover:bg-blue-600 transition-all text-xs sm:text-base"
-                  title="Compare Users"
-                >
-                  <User className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span className="hidden sm:inline">Compare Users</span>
-                </button>
-              )}
-              <button
-                onClick={() => setShowAboutModal(true)}
-                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-green-500 text-white rounded-lg sm:rounded-xl hover:bg-green-600 transition-all text-xs sm:text-base"
-                title="About Bookshelf"
-              >
-                <Info className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline">About</span>
-              </button>
-              <button
-                onClick={() => setShowProfile(true)}
-                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-purple-500 text-white rounded-lg sm:rounded-xl hover:bg-purple-600 transition-all text-xs sm:text-base"
-                title="Profile"
-              >
-                <User className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline">Profile</span>
-              </button>
-              <button
-                onClick={() => generateRecommendations()}
-                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg sm:rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all shadow-md text-xs sm:text-base"
-                title="Recommendations"
-              >
-                <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline">Recommendations</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <Header
+        currentUser={currentUser}
+        totalBooks={bookshelves.flatMap(shelf => shelf.books || []).length}
+        activeShelf={getActiveBookshelf()}
+        onShowUserComparison={async () => {
+          setShowUserComparison(true);
+          await Promise.all([
+            loadUserProfiles(),
+            loadUserStats()
+          ]);
+        }}
+        onShowAbout={() => setShowAboutModal(true)}
+        onShowProfile={() => setShowProfile(true)}
+        onGenerateRecommendations={() => generateRecommendations()}
+      />
 
       {/* User Stats Section */}
-      {currentUser && (
-        <div className="bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-4 py-4 sm:py-6">
-            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
-                {/* User Avatar and Name */}
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <div className="text-4xl sm:text-5xl">{userProfile.avatar || '📚'}</div>
-                  <div>
-                    <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-                      {userProfile.name?.trim() || currentUser.username || 'Reader'}
-                    </h2>
-                    <p className="text-xs sm:text-sm text-gray-600">Your Reading Journey</p>
-                  </div>
-                </div>
-
-                {/* Stats */}
-                <div className="flex flex-wrap gap-4 sm:gap-6 flex-1">
-                  {/* XP and Level */}
-                  {userXP && (
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-5 h-5 text-yellow-500" />
-                      <div>
-                        <div className="text-lg sm:text-xl font-bold text-gray-900">
-                          Level {userXP.current_level || 1}
-                        </div>
-                        <div className="text-xs text-gray-600">
-                          {userXP.total_xp || 0} XP
-                        </div>
-                        {userXP.xp_to_next_level > 0 && (
-                          <div className="w-20 h-1.5 bg-gray-200 rounded-full mt-1 overflow-hidden">
-                            <div 
-                              className="h-full bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-full transition-all"
-                              style={{ 
-                                width: `${Math.min(100, ((userXP.total_xp || 0) % (100 + (userXP.current_level - 1) * 50)) / (userXP.xp_to_next_level || 100) * 100)}%` 
-                              }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Reading Streak */}
-                  {userStreak && userStreak.current_streak > 0 && (
-                    <div className="flex items-center gap-2">
-                      <div className="text-2xl">🔥</div>
-                      <div>
-                        <div className="text-lg sm:text-xl font-bold text-gray-900">
-                          {userStreak.current_streak} day{userStreak.current_streak !== 1 ? 's' : ''}
-                        </div>
-                        <div className="text-xs text-gray-600">Reading Streak</div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2">
-                    <Book className="w-5 h-5 text-indigo-600" />
-                    <div>
-                      <div className="text-lg sm:text-xl font-bold text-gray-900">{getTotalBooksCount()}</div>
-                      <div className="text-xs text-gray-600">Total Books</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-purple-600" />
-                    <div>
-                      <div className="text-lg sm:text-xl font-bold text-gray-900">{booksReadThisMonth}</div>
-                      <div className="text-xs text-gray-600">This Month</div>
-                    </div>
-                  </div>
-                  {userProfile.monthlyTarget > 0 && (
-                    <div className="flex items-center gap-2">
-                      <Target className="w-5 h-5 text-pink-600" />
-                      <div>
-                        <div className="text-lg sm:text-xl font-bold text-gray-900">
-                          {booksReadThisMonth} / {userProfile.monthlyTarget}
-                        </div>
-                        <div className="text-xs text-gray-600">Monthly Goal</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Recent Achievements */}
-                {recentAchievements.length > 0 && (
-                  <div className="w-full mt-4 pt-4 border-t border-gray-200">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Sparkles className="w-4 h-4 text-yellow-500" />
-                      <span className="text-sm font-semibold text-gray-700">Recent Achievements</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {recentAchievements.slice(0, 5).map((achievement) => (
-                        <div
-                          key={achievement.id}
-                          className="flex items-center gap-1.5 px-2 py-1 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border border-yellow-200"
-                          title={achievement.badge_description}
-                        >
-                          <span className="text-lg">{achievement.badge_emoji}</span>
-                          <span className="text-xs font-medium text-gray-700">{achievement.badge_name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Encouraging Message */}
-                {encouragingMessage && (
-                  <div className="w-full sm:w-auto sm:max-w-md">
-                    <div className="bg-gradient-to-r from-indigo-100 to-purple-100 rounded-lg p-3 sm:p-4 border-l-4 border-indigo-500">
-                      <p className="text-sm sm:text-base text-gray-800 font-medium">
-                        {encouragingMessage}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <UserStatsSection
+        currentUser={currentUser}
+        userProfile={userProfile}
+        userXP={userXP}
+        userStreak={userStreak}
+        recentAchievements={recentAchievements}
+        totalBooksCount={getTotalBooksCount()}
+        booksReadThisMonth={booksReadThisMonth}
+        remainingBooks={remainingBooks}
+        encouragingMessage={encouragingMessage}
+      />
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Tabs for Active and Completed Bookshelves */}
@@ -2478,9 +2062,10 @@ export default function App() {
                   setActiveBookshelfIndex(bookshelves.findIndex(s => s.id === completed[0].id));
                 }
               }}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300"
+              className="px-2 sm:px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 flex items-center justify-center"
             >
-              Completed ({getCompletedBookshelves().length})
+              <Check className="w-4 h-4 sm:mr-1" />
+              <span className="hidden sm:inline">Completed ({getCompletedBookshelves().length})</span>
             </button>
             <button
               onClick={() => {
@@ -2489,10 +2074,10 @@ export default function App() {
                   setActiveBookshelfIndex(bookshelves.findIndex(s => s.id === wishlist.id));
                 }
               }}
-              className="px-4 py-2 bg-pink-600 text-white rounded-lg font-medium hover:bg-pink-700"
+              className="px-2 sm:px-4 py-2 bg-pink-600 text-white rounded-lg font-medium hover:bg-pink-700 flex items-center justify-center"
             >
-              <Heart className="w-4 h-4 inline mr-1" />
-              Wishlist ({getWishlistBookshelf()?.books.length || 0})
+              <Heart className="w-4 h-4 sm:mr-1" />
+              <span className="hidden sm:inline">Wishlist ({getWishlistBookshelf()?.books.length || 0})</span>
             </button>
             <button
               onClick={() => {
@@ -2501,9 +2086,10 @@ export default function App() {
                   setActiveBookshelfIndex(bookshelves.findIndex(s => s.id === favorites.id));
                 }
               }}
-              className="px-4 py-2 bg-yellow-500 text-white rounded-lg font-medium hover:bg-yellow-600"
+              className="px-2 sm:px-4 py-2 bg-yellow-500 text-white rounded-lg font-medium hover:bg-yellow-600 flex items-center justify-center"
             >
-              ⭐ Favorites ({getFavoritesBookshelf()?.books.length || 0})
+              <Star className="w-4 h-4 sm:mr-1 fill-current" />
+              <span className="hidden sm:inline">Favorites ({getFavoritesBookshelf()?.books.length || 0})</span>
             </button>
             <button
               onClick={() => setShowAddModal(true)}
@@ -2770,1785 +2356,218 @@ export default function App() {
         </div>
 
         {/* Bookshelf Display */}
-        <div className={`bg-gradient-to-b ${theme.colors.primary} rounded-2xl shadow-2xl p-8 relative overflow-hidden`}>
-          <div className={`bg-white/20 rounded-xl p-6 min-h-[400px] relative z-10`}>
-            {filteredBooks.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-64 text-white">
-                <div className="text-8xl mb-4 opacity-75">📚</div>
-                <p className="text-xl font-semibold">Your bookshelf is empty</p>
-                <p className="text-sm opacity-75">Add your first book to get started!</p>
-              </div>
-            ) : (
-              activeShelf?.displayMode === 'table' ? (
-                // Table View
-                <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-                  <div className="bg-indigo-600 text-white px-6 py-4 flex items-center justify-between">
-                    <h3 className="text-lg font-semibold">All Books - Table View</h3>
-                    <div className="flex gap-2">
-                      <label className="px-3 py-1.5 bg-white text-indigo-600 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-2 text-sm font-medium cursor-pointer">
-                        <FileUp className="w-4 h-4" />
-                        Import
-                        <input
-                          type="file"
-                          accept=".csv,.json"
-                          onChange={handleFileUpload}
-                          className="hidden"
-                        />
-                      </label>
-                      <button
-                        onClick={exportToCSV}
-                        className="px-3 py-1.5 bg-white text-indigo-600 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-2 text-sm font-medium"
-                        title="Export to CSV"
-                      >
-                        <Download className="w-4 h-4" />
-                        CSV
-                      </button>
-                      <button
-                        onClick={exportToJSON}
-                        className="px-3 py-1.5 bg-white text-indigo-600 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-2 text-sm font-medium"
-                        title="Export to JSON"
-                      >
-                        <Download className="w-4 h-4" />
-                        JSON
-                      </button>
-                    </div>
-                  </div>
-                  <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 sticky top-0">
-                        <tr>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[200px]">Title</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[150px]">Author</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[120px]">Bookshelf</th>
-                          <th className="px-4 py-3 text-center font-semibold text-gray-700 border-b">Rating</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[110px]">Start Date</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[110px]">Finish Date</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Description</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[160px] whitespace-nowrap">Favorite Character</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Scene Summary</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Memorable Moments</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b">Review</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[160px] whitespace-nowrap">Least Favorite Part</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {getAllBooksWithBookshelf().map((book, index) => (
-                          <tr 
-                            key={book.id || index}
-                            className="hover:bg-gray-50 border-b border-gray-100 cursor-pointer"
-                            onClick={() => { setSelectedBook(book); setShowDetailsModal(true); }}
-                          >
-                            <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{book.title || '-'}</td>
-                            <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{book.author || '-'}</td>
-                            <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
-                              <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs">
-                                {book.bookshelfName || '-'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              {book.rating > 0 ? (
-                                <div className="flex items-center justify-center gap-1">
-                                  <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                                  <span className="text-gray-700">{book.rating}</span>
-                                </div>
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{book.startDate || '-'}</td>
-                            <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{book.finishDate || '-'}</td>
-                            <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={book.description || ''}>
-                              {book.description || '-'}
-                            </td>
-                            <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={book.favoriteCharacter || ''}>
-                              {book.favoriteCharacter || '-'}
-                            </td>
-                            <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={book.sceneSummary || ''}>
-                              {book.sceneSummary || '-'}
-                            </td>
-                            <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={book.memorableMoments || ''}>
-                              {book.memorableMoments || '-'}
-                            </td>
-                            <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={book.review || ''}>
-                              {book.review || '-'}
-                            </td>
-                            <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={book.leastFavoritePart || ''}>
-                              {book.leastFavoritePart || '-'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="bg-gray-50 px-6 py-3 text-sm text-gray-600 border-t">
-                    Total: {getAllBooksWithBookshelf().length} books across {bookshelves.length} bookshelves
-                  </div>
-                </div>
-              ) : (
-                <div className={`flex ${activeShelf?.displayMode === 'spines' ? 'flex-wrap gap-3 items-end' : 'flex-wrap gap-4'}`}>
-                  {filteredBooks.map((book, index) => (
-                    activeShelf?.displayMode === 'spines' ? (
-                    <button
-                      key={book.id}
-                      onClick={() => { setSelectedBook(book); setShowDetailsModal(true); }}
-                      className="relative group"
-                      style={{ 
-                        perspective: '1000px',
-                        height: '300px'
-                      }}
-                    >
-                      {/* Book Spine with 3D effect */}
-                      <div
-                        className="relative h-full transition-all duration-300 transform hover:scale-105"
-                        style={{
-                          width: '55px',
-                          transformStyle: 'preserve-3d',
-                        }}
-                      >
-                        {/* Main spine face */}
-                        <div
-                          className="absolute inset-0 rounded-sm shadow-2xl transition-all duration-300 overflow-hidden"
-                          style={{
-                            backgroundColor: `hsl(${(index * 25) % 360}, 65%, 45%)`,
-                            transform: 'rotateY(-2deg)',
-                            boxShadow: 'inset -3px 0 10px rgba(0,0,0,0.3), 0 4px 20px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,0,0,0.1)',
-                            backgroundImage: book.coverUrl && !book.coverUrl.includes('placeholder') 
-                              ? `linear-gradient(to right, rgba(0,0,0,0.3), rgba(0,0,0,0.1)), url(${book.coverUrl})`
-                              : `linear-gradient(135deg, hsl(${(index * 25) % 360}, 65%, 45%) 0%, hsl(${(index * 25) % 360}, 65%, 35%) 100%)`,
-                            backgroundSize: 'cover',
-                            backgroundPosition: 'left center',
-                          }}
-                        >
-                          {/* Top binding line */}
-                          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
-                          
-                          {/* Bottom binding line */}
-                          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
-                          
-                          {/* Left edge highlight (spine edge) */}
-                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-r from-white/30 to-transparent"></div>
-                          
-                          {/* Right edge shadow (spine edge) */}
-                          <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-l from-black/40 to-transparent"></div>
-                          
-                          {/* Text on spine */}
-                          <div className="absolute inset-0 flex items-center justify-center p-2">
-                            <div 
-                              className="text-white font-bold text-xs leading-tight transform -rotate-90 whitespace-nowrap"
-                              style={{
-                                textShadow: '1px 1px 2px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.5)',
-                                letterSpacing: '0.5px',
-                                maxWidth: '250px',
-                              }}
-                            >
-                              {book.title.length > 25 ? book.title.substring(0, 25) + '...' : book.title}
-                            </div>
-                          </div>
-                          
-                          {/* Author on spine (smaller, at bottom) */}
-                          {book.author && (
-                            <div className="absolute bottom-8 left-0 right-0 flex items-center justify-center">
-                              <div 
-                                className="text-white/80 text-[10px] font-medium transform -rotate-90 whitespace-nowrap"
-                                style={{
-                                  textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
-                                  maxWidth: '200px',
-                                }}
-                              >
-                                {book.author.length > 20 ? book.author.substring(0, 20) + '...' : book.author}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Subtle texture overlay */}
-                          <div className="absolute inset-0 opacity-10" style={{
-                            backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(255,255,255,0.1) 2px, rgba(255,255,255,0.1) 4px)'
-                          }}></div>
-                        </div>
-                        
-                        {/* Top edge of book (when viewed from side) */}
-                        <div
-                          className="absolute top-0 left-0 right-0 h-2 rounded-t-sm"
-                          style={{
-                            backgroundColor: `hsl(${(index * 25) % 360}, 65%, 55%)`,
-                            transform: 'rotateX(88deg) translateZ(2px)',
-                            transformOrigin: 'top center',
-                            boxShadow: '0 -2px 5px rgba(0,0,0,0.3)',
-                          }}
-                        ></div>
-                        
-                        {/* Bottom edge of book (when viewed from side) */}
-                        <div
-                          className="absolute bottom-0 left-0 right-0 h-2 rounded-b-sm"
-                          style={{
-                            backgroundColor: `hsl(${(index * 25) % 360}, 65%, 35%)`,
-                            transform: 'rotateX(-88deg) translateZ(2px)',
-                            transformOrigin: 'bottom center',
-                            boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
-                          }}
-                        ></div>
-                      </div>
-                      
-                      {/* Tooltip on hover */}
-                      <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap z-20 shadow-xl pointer-events-none">
-                        <div className="font-semibold">{book.title}</div>
-                        {book.author && <div className="text-gray-300 text-[10px] mt-1">{book.author}</div>}
-                        <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                      </div>
-                    </button>
-                  ) : (
-                    <div key={book.id} className="group relative">
-                      <button
-                        onClick={() => { setSelectedBook(book); setShowDetailsModal(true); }}
-                        className="w-full"
-                      >
-                        <div className="transform transition-all hover:scale-105 hover:-translate-y-2">
-                          {failedImages.has(book.id) || failedImagesRef.current.has(book.id) ? (
-                            // Text fallback when image fails after retries
-                            <div className="w-32 h-48 rounded-lg shadow-xl border-2 border-white/50 bg-gradient-to-br from-indigo-500 to-purple-600 flex flex-col items-center justify-center p-3 text-center">
-                              <div className="text-white font-bold text-sm leading-tight mb-1 line-clamp-2">
-                                {book.title}
-                              </div>
-                              {book.author && (
-                                <div className="text-white/90 text-xs leading-tight line-clamp-2">
-                                  {book.author}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <img
-                              src={book.coverUrl}
-                              alt={book.title}
-                              className="w-32 h-48 object-cover rounded-lg shadow-xl border-2 border-white/50"
-                              onError={(e) => {
-                                const currentRetries = imageRetryCountsRef.current[book.id] || 0;
-                                const maxRetries = 2; // Reduced retries to minimize flickering
-                                
-                                // Only retry if it's a web URL (not data URL or placeholder)
-                                const isWebUrl = book.coverUrl && 
-                                  !book.coverUrl.startsWith('data:') && 
-                                  !book.coverUrl.includes('placeholder') &&
-                                  (book.coverUrl.startsWith('http://') || book.coverUrl.startsWith('https://'));
-                                
-                                if (isWebUrl && currentRetries < maxRetries) {
-                                  // Retry using ref to avoid re-render
-                                  imageRetryCountsRef.current[book.id] = currentRetries + 1;
-                                  
-                                  // Force reload by adding cache-busting parameter
-                                  const separator = book.coverUrl.includes('?') ? '&' : '?';
-                                  e.target.src = `${book.coverUrl}${separator}_retry=${currentRetries + 1}`;
-                                } else {
-                                  // Mark as failed in ref immediately to prevent flickering
-                                  failedImagesRef.current.add(book.id);
-                                  pendingFailedUpdatesRef.current.add(book.id);
-                                  
-                                  // Batch update state after a short delay to prevent flickering
-                                  setTimeout(() => {
-                                    if (pendingFailedUpdatesRef.current.size > 0) {
-                                      setFailedImages(prev => {
-                                        const newSet = new Set([...prev, ...pendingFailedUpdatesRef.current]);
-                                        pendingFailedUpdatesRef.current.clear();
-                                        return newSet;
-                                      });
-                                    }
-                                  }, 100);
-                                }
-                              }}
-                            />
-                          )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
-                            <span className="text-white text-xs font-semibold truncate w-full">{book.title}</span>
-                          </div>
-                        </div>
-                        {book.rating > 0 && (
-                          <div className="absolute -top-2 -right-2 bg-yellow-400 rounded-full p-1">
-                            <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                          </div>
-                        )}
-                      </button>
-                    </div>
-                  )
-                ))}
-              </div>
-              )
-            )}
-          </div>
-          <div className="mt-4 h-4 bg-black/20 rounded-b-xl"></div>
-          <div className="absolute bottom-4 left-4 text-white font-semibold">
-            {filteredBooks.length} / {activeShelf?.books.length || 0} books
-            {activeShelf?.type === 'regular' && ` (${activeShelf.books.length}/10)`}
-            {activeShelf?.type === 'wishlist' && ` (unlimited)`}
-            {activeShelf?.type === 'favorites' && ` (unlimited)`}
-          </div>
-        </div>
+        <BookshelfDisplay
+          activeShelf={activeShelf}
+          filteredBooks={filteredBooks}
+          allBooksWithBookshelf={getAllBooksWithBookshelf()}
+          totalBookshelves={bookshelves.length}
+          failedImages={failedImages}
+          failedImagesRef={failedImagesRef}
+          imageRetryCountsRef={imageRetryCountsRef}
+          pendingFailedUpdatesRef={pendingFailedUpdatesRef}
+          setFailedImages={setFailedImages}
+          onBookClick={(book) => {
+            setSelectedBook(book);
+            setShowDetailsModal(true);
+          }}
+          onExportCSV={exportToCSV}
+          onExportJSON={exportToJSON}
+          onImport={handleFileUpload}
+        />
       </div>
 
       {/* Add Book Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setShowAddModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">📚</span>
-                <h2 className="text-2xl font-bold text-gray-900">Add New Book</h2>
-              </div>
-              <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Search Book Title, Author, or ISBN *</label>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Type to search for books by title, author, or ISBN..."
-                />
-                {isSearching && <p className="text-sm text-gray-500 mt-1">Searching...</p>}
-              </div>
-
-              {searchResults.length > 0 && (
-                <div className="border border-gray-200 rounded-lg p-3 max-h-48 overflow-y-auto">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Search Results (click to select):</p>
-                  {searchResults.map((result, index) => (
-                    <button
-                      key={index}
-                      onClick={() => selectSearchResult(result)}
-                      className="w-full text-left p-2 hover:bg-gray-50 rounded flex gap-3 mb-2"
-                    >
-                      <img src={result.coverUrl} alt={result.title} className="w-10 h-14 object-cover rounded" />
-                      <div className="flex-1">
-                        <div className="font-semibold text-sm">{result.title}</div>
-                        <div className="text-xs text-gray-600">{result.author}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className="border-t pt-4">
-                <p className="text-sm text-gray-600 mb-4">Or enter book details manually:</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Book Title *</label>
-                <input
-                  type="text"
-                  value={newBook.title}
-                  onChange={(e) => setNewBook({ ...newBook, title: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Enter book title"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Author</label>
-                <input
-                  type="text"
-                  value={newBook.author}
-                  onChange={(e) => setNewBook({ ...newBook, author: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Author name"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Book Cover Image</label>
-                <div className="space-y-3">
-                  {/* Image Preview */}
-                  {newBook.coverUrl && (
-                    <div className="relative w-32 h-48 border-2 border-gray-300 rounded-lg overflow-hidden bg-gray-100">
-                      <img
-                        src={newBook.coverUrl}
-                        alt="Book cover preview"
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                        }}
-                      />
-                      {(newBook.coverUrl.startsWith('data:') || 
-                        (newBook.coverUrl && !newBook.coverUrl.includes('placeholder') && !newBook.coverUrl.startsWith('http'))) && (
-                        <div className="absolute top-1 right-1 bg-green-500 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
-                          <ImageIcon className="w-3 h-3" />
-                          <span>{newBook.coverUrl.startsWith('data:') ? 'Base64' : 'Storage'}</span>
-                        </div>
-                      )}
-                      <button
-                        onClick={() => setNewBook({ ...newBook, coverUrl: '' })}
-                        className="absolute top-1 left-1 bg-red-500 text-white p-1 rounded hover:bg-red-600 transition-colors"
-                        title="Remove image"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  )}
-                  
-                  {/* Upload Button */}
-                  <label className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer w-fit">
-                    <Upload className="w-5 h-5" />
-                    <span>{newBook.coverUrl ? 'Change Image' : 'Upload Image'}</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleImageUpload(e, false)}
-                      className="hidden"
-                    />
-                  </label>
-                  
-                  {/* URL Input (alternative) */}
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">Or enter image URL:</label>
-                    <input
-                      type="text"
-                      value={newBook.coverUrl && !newBook.coverUrl.startsWith('data:') ? newBook.coverUrl : ''}
-                      onChange={(e) => setNewBook({ ...newBook, coverUrl: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                      placeholder="Image URL (auto-filled from search)"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Uploaded images are saved with your book</p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                <textarea
-                  value={newBook.description}
-                  onChange={(e) => setNewBook({ ...newBook, description: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24"
-                  placeholder="Book description"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-                  <input
-                    type="date"
-                    value={newBook.startDate}
-                    onChange={(e) => setNewBook({ ...newBook, startDate: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Finish Date</label>
-                  <input
-                    type="date"
-                    value={newBook.finishDate}
-                    onChange={(e) => setNewBook({ ...newBook, finishDate: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Rating</label>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      onClick={() => setNewBook({ ...newBook, rating: star })}
-                      className="transition-transform hover:scale-110"
-                    >
-                      <Star
-                        className={`w-8 h-8 ${star <= newBook.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
-                      />
-                    </button>
-                  ))}
-                </div>
-                {newBook.rating <= 2 && newBook.rating > 0 && (
-                  <div className="mt-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Least Favorite Part *</label>
-                    <textarea
-                      value={newBook.leastFavoritePart}
-                      onChange={(e) => setNewBook({ ...newBook, leastFavoritePart: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-20"
-                      placeholder="What did you not like about this book?"
-                      required
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Favorite Character</label>
-                <input
-                  type="text"
-                  value={newBook.favoriteCharacter}
-                  onChange={(e) => setNewBook({ ...newBook, favoriteCharacter: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Your favorite character"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Scene Summary</label>
-                <textarea
-                  value={newBook.sceneSummary}
-                  onChange={(e) => setNewBook({ ...newBook, sceneSummary: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24"
-                  placeholder="Memorable scene or summary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Memorable Moments</label>
-                <textarea
-                  value={newBook.memorableMoments}
-                  onChange={(e) => setNewBook({ ...newBook, memorableMoments: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24"
-                  placeholder="Memorable moments from the book"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Review</label>
-                <textarea
-                  value={newBook.review}
-                  onChange={(e) => setNewBook({ ...newBook, review: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24"
-                  placeholder="Your review of the book"
-                />
-              </div>
-
-              <button
-                onClick={addBook}
-                className="w-full py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg hover:from-indigo-700 hover:to-blue-700 transition-all font-medium"
-              >
-                Add to Library
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AddBookModal
+        show={showAddModal}
+        newBook={newBook}
+        setNewBook={setNewBook}
+        searchQuery={searchQuery}
+        searchResults={searchResults}
+        isSearching={isSearching}
+        onClose={() => setShowAddModal(false)}
+        onSearchChange={handleSearchChange}
+        onSelectResult={selectSearchResult}
+        onImageUpload={handleImageUpload}
+        onAddBook={addBook}
+      />
 
       {/* Book Details Modal */}
-      {showDetailsModal && selectedBook && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setShowDetailsModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">📚</span>
-                <h2 className="text-2xl font-bold text-gray-900">{selectedBook.title}</h2>
-              </div>
-              <button onClick={() => setShowDetailsModal(false)} className="text-gray-400 hover:text-gray-600">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            
-            <div className="p-6">
-              <div className="flex gap-6 mb-6">
-                <div className="relative">
-                  <img
-                    src={selectedBook.coverUrl}
-                    alt={selectedBook.title}
-                    className="w-40 h-60 object-cover rounded-lg shadow-lg"
-                    onError={(e) => {
-                      e.target.src = `https://via.placeholder.com/200x300/4F46E5/FFFFFF?text=${encodeURIComponent(selectedBook.title)}`;
-                    }}
-                  />
-                  {selectedBook.coverUrl && 
-                   !selectedBook.coverUrl.includes('placeholder') && 
-                   (selectedBook.coverUrl.startsWith('data:') || !selectedBook.coverUrl.startsWith('http')) && (
-                    <div className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded flex items-center gap-1 shadow-lg">
-                      <ImageIcon className="w-3 h-3" />
-                      <span>{selectedBook.coverUrl.startsWith('data:') ? 'Base64' : 'Storage'}</span>
-                    </div>
-                  )}
-                  {/* Upload overlay button */}
-                  <label className="absolute bottom-2 right-2 bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer shadow-lg" title="Upload new image">
-                    <Upload className="w-4 h-4" />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleImageUpload(e, true)}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <User className="w-5 h-5 text-gray-500" />
-                    <span className="text-lg font-medium text-gray-700">{selectedBook.author || 'Unknown Author'}</span>
-                  </div>
-                  <div className="flex items-center gap-1 mb-4">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        onClick={() => {
-                          const updates = { rating: star };
-                          if (star <= 2) {
-                            // Show least favorite part field if rating is 1-2
-                          } else {
-                            updates.leastFavoritePart = '';
-                          }
-                          handleUpdateBook(selectedBook.id, updates);
-                          setSelectedBook({ ...selectedBook, ...updates });
-                        }}
-                      >
-                        <Star
-                          className={`w-6 h-6 ${star <= selectedBook.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                      <input
-                        type="date"
-                        value={selectedBook.startDate || ''}
-                        onChange={(e) => {
-                          const updates = { startDate: e.target.value || null };
-                          handleUpdateBook(selectedBook.id, updates);
-                          setSelectedBook({ ...selectedBook, ...updates });
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Finish Date</label>
-                      <input
-                        type="date"
-                        value={selectedBook.finishDate || ''}
-                        onChange={(e) => {
-                          const updates = { finishDate: e.target.value || null };
-                          handleUpdateBook(selectedBook.id, updates);
-                          setSelectedBook({ ...selectedBook, ...updates });
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                      />
-                    </div>
-                  </div>
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                    <textarea
-                      value={selectedBook.description || ''}
-                      onChange={(e) => {
-                        const updates = { description: e.target.value };
-                        handleUpdateBook(selectedBook.id, updates);
-                        setSelectedBook({ ...selectedBook, ...updates });
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm h-20"
-                      placeholder="Book description"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="mb-4">
-                <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <Heart className="w-5 h-5 text-pink-500" />
-                  Favorite Character
-                </h3>
-                <textarea
-                  value={selectedBook.favoriteCharacter || ''}
-                  onChange={(e) => {
-                    const updates = { favoriteCharacter: e.target.value };
-                    handleUpdateBook(selectedBook.id, updates);
-                    setSelectedBook({ ...selectedBook, ...updates });
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-pink-50 h-24"
-                  placeholder="Your favorite character from the book"
-                />
-              </div>
-
-              <div className="mb-4">
-                <h3 className="font-semibold text-gray-900 mb-2">Scene Summary</h3>
-                <textarea
-                  value={selectedBook.sceneSummary || ''}
-                  onChange={(e) => {
-                    const updates = { sceneSummary: e.target.value };
-                    handleUpdateBook(selectedBook.id, updates);
-                    setSelectedBook({ ...selectedBook, ...updates });
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-purple-50 h-24"
-                  placeholder="Memorable scene or summary"
-                />
-              </div>
-
-              <div className="mb-4">
-                <h3 className="font-semibold text-gray-900 mb-2">Memorable Moments</h3>
-                <textarea
-                  value={selectedBook.memorableMoments || ''}
-                  onChange={(e) => {
-                    const updates = { memorableMoments: e.target.value };
-                    handleUpdateBook(selectedBook.id, updates);
-                    setSelectedBook({ ...selectedBook, ...updates });
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-blue-50 h-24"
-                  placeholder="Memorable moments from the book"
-                />
-              </div>
-
-              <div className="mb-4">
-                <h3 className="font-semibold text-gray-900 mb-2">Review</h3>
-                <textarea
-                  value={selectedBook.review || ''}
-                  onChange={(e) => {
-                    const updates = { review: e.target.value };
-                    handleUpdateBook(selectedBook.id, updates);
-                    setSelectedBook({ ...selectedBook, ...updates });
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-green-50 h-24"
-                  placeholder="Your review of the book"
-                />
-              </div>
-
-              {selectedBook.rating <= 2 && selectedBook.rating > 0 && (
-                <div className="mb-4">
-                  <h3 className="font-semibold text-gray-900 mb-2">Least Favorite Part</h3>
-                  <textarea
-                    value={selectedBook.leastFavoritePart || ''}
-                    onChange={(e) => {
-                      const updates = { leastFavoritePart: e.target.value };
-                      handleUpdateBook(selectedBook.id, updates);
-                      setSelectedBook({ ...selectedBook, ...updates });
-                    }}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24"
-                    placeholder="What did you not like about this book?"
-                  />
-                </div>
-              )}
-
-              {/* Library Availability Checker */}
-              <div className="mb-6 mt-6 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border border-blue-200">
-                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <Library className="w-5 h-5 text-blue-600" />
-                  Check Library Availability
-                </h3>
-                <p className="text-sm text-gray-600 mb-3">
-                  Check if this book is available at your local libraries
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <a
-                    href={`https://www.sno-isle.org/catalog?q=${encodeURIComponent(selectedBook.title + (selectedBook.author ? ' ' + selectedBook.author : ''))}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                  >
-                    <Library className="w-4 h-4" />
-                    Sno-Isle Libraries
-                  </a>
-                  <a
-                    href={`https://kcls.bibliocommons.com/v2/search?query=${encodeURIComponent(selectedBook.title + (selectedBook.author ? ' ' + selectedBook.author : ''))}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-                  >
-                    <Library className="w-4 h-4" />
-                    KCLS (King County)
-                  </a>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Opens library catalog in a new tab. You may need to search manually if the book isn't found automatically.
-                </p>
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={() => {
-                    setBookToMove(selectedBook);
-                    setShowMoveModal(true);
-                  }}
-                  className="flex-1 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-                >
-                  Move to Another Bookshelf
-                </button>
-                <button
-                  onClick={() => handleDeleteBook(selectedBook.id)}
-                  className="flex-1 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-                >
-                  Remove from Library
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <BookDetailsModal
+        show={showDetailsModal}
+        selectedBook={selectedBook}
+        setSelectedBook={setSelectedBook}
+        onClose={() => setShowDetailsModal(false)}
+        onUpdateBook={handleUpdateBook}
+        onImageUpload={handleImageUpload}
+        onDeleteBook={handleDeleteBook}
+        onMoveBook={(book) => {
+          setBookToMove(book);
+          setShowMoveModal(true);
+        }}
+      />
 
       {/* Recommendations Modal */}
-      {showRecommendations && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setShowRecommendations(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">📚</span>
-                <Sparkles className="w-6 h-6 text-purple-600" />
-                <h2 className="text-2xl font-bold text-gray-900">Recommended for You</h2>
-              </div>
-              <button onClick={() => setShowRecommendations(false)} className="text-gray-400 hover:text-gray-600">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            
-            <div className="p-6">
-              {isLoadingRecommendations ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Analyzing your reading preferences...</p>
-                  </div>
-                </div>
-              ) : recommendations.length > 0 ? (
-                <>
-                  <div className="space-y-4 mb-6">
-                    {recommendations.map((rec, index) => (
-                      <div 
-                        key={index} 
-                        className="border border-gray-200 rounded-xl p-4 hover:border-purple-300 transition-colors cursor-pointer group"
-                        onClick={() => addRecommendationToWishlist(rec)}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-semibold text-lg text-gray-900">{rec.title}</h3>
-                              <Heart className="w-4 h-4 text-pink-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </div>
-                            <p className="text-sm text-gray-600 mb-2">by {rec.author}</p>
-                            <p className="text-gray-700 text-sm">{rec.reason}</p>
-                            <p className="text-xs text-pink-600 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              Click to add to wishlist
-                            </p>
-                          </div>
-                          <div className="flex gap-2 ml-4">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                addRecommendationToWishlist(rec);
-                              }}
-                              className="px-3 py-1 text-sm bg-gradient-to-r from-pink-600 to-rose-600 text-white rounded-lg hover:from-pink-700 hover:to-rose-700 transition-colors flex items-center gap-1"
-                              title="Add to wishlist"
-                            >
-                              <Heart className="w-4 h-4" />
-                              Add
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                ignoreSuggestion(rec.title, rec.author);
-                              }}
-                              className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-                              title="Ignore this suggestion"
-                            >
-                              Ignore
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex justify-center pt-4 border-t border-gray-200">
-                    <button
-                      onClick={() => generateRecommendations(true)}
-                      disabled={isLoadingRecommendations}
-                      className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      <Sparkles className="w-5 h-5" />
-                      Get 5 More Recommendations
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <p className="text-center text-gray-600 py-12">No recommendations available. Add more books with ratings to get personalized recommendations!</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <RecommendationsModal
+        show={showRecommendations}
+        recommendations={recommendations}
+        isLoadingRecommendations={isLoadingRecommendations}
+        onClose={() => setShowRecommendations(false)}
+        onAddToWishlist={addRecommendationToWishlist}
+        onIgnore={ignoreSuggestion}
+        onGetMore={() => generateRecommendations(true)}
+      />
 
       {/* Profile Modal */}
-      {showProfile && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => {
+      <ProfileModal
+        show={showProfile}
+        userProfile={userProfile}
+        setUserProfile={setUserProfile}
+        currentUser={currentUser}
+        authUser={authUser}
+        showAvatarSelector={showAvatarSelector}
+        setShowAvatarSelector={setShowAvatarSelector}
+        profileError={profileError}
+        profileSuccess={profileSuccess}
+        profileLoading={profileLoading}
+        allBooks={allBooks}
+        bookshelves={bookshelves}
+        booksReadThisMonth={booksReadThisMonth}
+        remainingBooks={remainingBooks}
+        averageBooksPerMonth={averageBooksPerMonth}
+        mostReadAuthor={mostReadAuthor}
+        userXP={userXP}
+        userStreak={userStreak}
+        recentAchievements={recentAchievements}
+        onClose={() => {
           setShowProfile(false);
           setProfileError('');
           setProfileSuccess('');
           setShowAvatarSelector(false);
-        }}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">{userProfile.avatar || '📚'}</span>
-                <User className="w-6 h-6 text-indigo-600" />
-                <h2 className="text-2xl font-bold text-gray-900">User Profile</h2>
-              </div>
-              <button onClick={() => {
-                setShowProfile(false);
-                setProfileError('');
-                setProfileSuccess('');
-                setShowAvatarSelector(false);
-              }} className="text-gray-400 hover:text-gray-600">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+        }}
+        onChangeUser={handleChangeUser}
+        onLogout={logout}
+        onSave={async () => {
+          setProfileLoading(true);
+          setProfileError('');
+          setProfileSuccess('');
+          
+          try {
+            const result = await updateUserProfile(currentUser.id, {
+              name: userProfile.name,
+              monthly_target: userProfile.monthlyTarget,
+              avatar: userProfile.avatar,
+              bio: userProfile.bio,
+              feedback: userProfile.feedback,
+              hide_from_comparison: userProfile.hideFromComparison || false
+            });
             
-            <div className="p-6 space-y-6">
-              {/* Logged in User Display */}
-              {currentUser && (
-                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">👤</span>
-                      <div>
-                        <p className="text-sm text-gray-600">Logged in as</p>
-                        <p className="text-lg font-semibold text-gray-900">
-                          {authUser ? authUser.email : currentUser.username}
-                        </p>
-                        {authUser && isEmailVerified(authUser) && (
-                          <p className="text-xs text-green-600 mt-1">✓ Email verified</p>
-                        )}
-                        {authUser && !isEmailVerified(authUser) && (
-                          <p className="text-xs text-yellow-600 mt-1">⚠ Email not verified</p>
-                        )}
-                        {!authUser && (
-                          <p className="text-xs text-gray-500 mt-1">Using default account</p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {authUser && (
-                        <button
-                          onClick={handleChangeUser}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-all"
-                          title="Change User"
-                        >
-                          <User className="w-4 h-4" />
-                          <span className="text-sm">Change User</span>
-                        </button>
-                      )}
-                      <button
-                        onClick={logout}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-all"
-                        title="Logout"
-                      >
-                        <X className="w-4 h-4" />
-                        <span className="text-sm">Logout</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Avatar Display and Selector */}
-              <div className="text-center">
-                <div className="text-6xl mb-4">{userProfile.avatar || '📚'}</div>
-                <button
-                  onClick={() => setShowAvatarSelector(!showAvatarSelector)}
-                  className="flex items-center justify-center gap-2 mx-auto px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-200 hover:bg-indigo-100 transition-colors"
-                >
-                  <span className="text-xl">{userProfile.avatar || '📚'}</span>
-                  <span className="font-medium">Change Avatar</span>
-                  {showAvatarSelector ? <ChevronUp size={20} className="text-indigo-600" /> : <ChevronDown size={20} className="text-indigo-600" />}
-                </button>
-                {showAvatarSelector && (
-                  <div className="mt-4">
-                    <AvatarSelector
-                      currentAvatar={userProfile.avatar || '📚'}
-                      onSelect={(newAvatar) => setUserProfile({ ...userProfile, avatar: newAvatar })}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Your Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Your Name</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                  <input
-                    type="text"
-                    value={userProfile.name}
-                    onChange={(e) => setUserProfile({ ...userProfile, name: e.target.value })}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Enter your name"
-                    maxLength={50}
-                  />
-                </div>
-              </div>
-
-              {/* Bio */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Bio (Optional)</label>
-                <textarea
-                  value={userProfile.bio || ''}
-                  onChange={(e) => setUserProfile({ ...userProfile, bio: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                  placeholder="Tell us about yourself..."
-                  rows="3"
-                  maxLength={200}
-                />
-                <div className="text-xs text-gray-500 mt-1 text-right">
-                  {(userProfile.bio || '').length}/200
-                </div>
-              </div>
-
-              {/* Monthly Reading Target */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Monthly Reading Target</label>
-                <input
-                  type="number"
-                  value={userProfile.monthlyTarget}
-                  onChange={(e) => setUserProfile({ ...userProfile, monthlyTarget: parseInt(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Number of books to read this month"
-                  min="0"
-                />
-              </div>
-
-              {/* Reading Progress */}
-              {userProfile.monthlyTarget > 0 && (
-                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Target className="w-8 h-8 text-indigo-600" />
-                    <h3 className="text-xl font-bold text-gray-900">Reading Progress</h3>
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between text-sm text-gray-600 mb-2">
-                        <span>Books Read This Month</span>
-                        <span className="font-semibold">{booksReadThisMonth} / {userProfile.monthlyTarget}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-4">
-                        <div
-                          className="bg-gradient-to-r from-indigo-600 to-purple-600 h-4 rounded-full transition-all duration-300"
-                          style={{ width: `${Math.min(100, (booksReadThisMonth / userProfile.monthlyTarget) * 100)}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-indigo-600">{remainingBooks}</p>
-                      <p className="text-sm text-gray-600">books remaining to reach your goal</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Statistics */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="font-semibold text-gray-900 mb-4">Reading Statistics</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-2xl font-bold text-indigo-600">{allBooks.length}</p>
-                    <p className="text-sm text-gray-600">Total Books</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-purple-600">{bookshelves.length}</p>
-                    <p className="text-sm text-gray-600">Bookshelves</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-pink-600">{booksReadThisMonth}</p>
-                    <p className="text-sm text-gray-600">Read This Month</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-orange-600">
-                      {allBooks.length > 0 
-                        ? (allBooks.reduce((sum, b) => sum + (b.rating || 0), 0) / allBooks.filter(b => b.rating > 0).length).toFixed(1)
-                        : '0'
-                      }
-                    </p>
-                    <p className="text-sm text-gray-600">Average Rating</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-teal-600">{averageBooksPerMonth}</p>
-                    <p className="text-sm text-gray-600">Avg Books/Month</p>
-                  </div>
-                  {mostReadAuthor && mostReadAuthor !== 'N/A' && (
-                    <div>
-                      <p className="text-lg font-bold text-green-600 truncate" title={mostReadAuthor}>
-                        {mostReadAuthor}
-                      </p>
-                      <p className="text-sm text-gray-600">Favorite Author</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Gamification Stats */}
-              {(userXP || userStreak) && (
-                <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-4 border border-yellow-200">
-                  <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-yellow-600" />
-                    Achievements & Progress
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    {userXP && (
-                      <>
-                        <div>
-                          <p className="text-2xl font-bold text-yellow-600">Level {userXP.current_level || 1}</p>
-                          <p className="text-sm text-gray-600">Current Level</p>
-                        </div>
-                        <div>
-                          <p className="text-2xl font-bold text-orange-600">{userXP.total_xp || 0}</p>
-                          <p className="text-sm text-gray-600">Total XP</p>
-                        </div>
-                        {userXP.xp_to_next_level > 0 && (
-                          <div className="col-span-2">
-                            <div className="flex justify-between text-xs text-gray-600 mb-1">
-                              <span>Progress to Level {userXP.current_level + 1}</span>
-                              <span>{userXP.xp_to_next_level} XP needed</span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2">
-                              <div 
-                                className="bg-gradient-to-r from-yellow-400 to-orange-500 h-2 rounded-full transition-all"
-                                style={{ 
-                                  width: `${Math.min(100, ((userXP.total_xp || 0) % (100 + (userXP.current_level - 1) * 50)) / (userXP.xp_to_next_level || 100) * 100)}%` 
-                                }}
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    {userStreak && (
-                      <>
-                        <div>
-                          <p className="text-2xl font-bold text-red-600">🔥 {userStreak.current_streak || 0}</p>
-                          <p className="text-sm text-gray-600">Current Streak</p>
-                        </div>
-                        <div>
-                          <p className="text-2xl font-bold text-purple-600">🌟 {userStreak.longest_streak || 0}</p>
-                          <p className="text-sm text-gray-600">Longest Streak</p>
-                        </div>
-                      </>
-                    )}
-                    {recentAchievements.length > 0 && (
-                      <div className="col-span-2">
-                        <p className="text-sm font-semibold text-gray-700 mb-2">Recent Achievements ({recentAchievements.length})</p>
-                        <div className="flex flex-wrap gap-2">
-                          {recentAchievements.slice(0, 6).map((achievement) => (
-                            <div
-                              key={achievement.id}
-                              className="flex items-center gap-1.5 px-2 py-1 bg-white rounded-lg border border-yellow-200"
-                              title={achievement.badge_description}
-                            >
-                              <span className="text-lg">{achievement.badge_emoji}</span>
-                              <span className="text-xs font-medium text-gray-700">{achievement.badge_name}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Feedback Section */}
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
-                <div className="flex items-center gap-3 mb-4">
-                  <MessageSquare className="w-6 h-6 text-indigo-600" />
-                  <h3 className="text-xl font-bold text-gray-900">Feedback</h3>
-                </div>
-                <p className="text-sm text-gray-600 mb-4">
-                  We'd love to hear your thoughts! Share your feedback, suggestions, or report any issues you've encountered.
-                </p>
-                <textarea
-                  value={userProfile.feedback || ''}
-                  onChange={(e) => setUserProfile({ ...userProfile, feedback: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-white"
-                  placeholder="Tell us what you think about Bookshelf..."
-                  rows="5"
-                  maxLength={1000}
-                />
-                <div className="text-xs text-gray-500 mt-2 text-right">
-                  {(userProfile.feedback || '').length}/1000
-                </div>
-              </div>
-
-              {/* Privacy Settings */}
-              <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-6 border border-gray-200">
-                <div className="flex items-center gap-3 mb-4">
-                  <Settings className="w-6 h-6 text-gray-600" />
-                  <h3 className="text-xl font-bold text-gray-900">Privacy Settings</h3>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-gray-900">Hide from User Comparison</p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      When enabled, your profile will not appear in the user comparison list
-                    </p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={userProfile.hideFromComparison || false}
-                      onChange={(e) => setUserProfile({ ...userProfile, hideFromComparison: e.target.checked })}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                  </label>
-                </div>
-              </div>
-
-              {/* Error/Success Messages */}
-              {profileError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
-                  {profileError}
-                </div>
-              )}
-
-              {profileSuccess && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-green-700 text-sm">
-                  {profileSuccess}
-                </div>
-              )}
-
-              {/* Save Button */}
-              <button
-                onClick={async () => {
-                  setProfileLoading(true);
-                  setProfileError('');
-                  setProfileSuccess('');
-                  
-                  try {
-                    const result = await updateUserProfile(currentUser.id, {
-                      name: userProfile.name,
-                      monthly_target: userProfile.monthlyTarget,
-                      avatar: userProfile.avatar,
-                      bio: userProfile.bio,
-                      feedback: userProfile.feedback,
-                      hide_from_comparison: userProfile.hideFromComparison || false
-                    });
-                    
-                    if (result.error) {
-                      throw result.error;
-                    }
-                    
-                    setProfileSuccess('Profile saved successfully!');
-                    setTimeout(() => {
-                      setShowProfile(false);
-                      setProfileSuccess('');
-                      setShowAvatarSelector(false);
-                    }, 1000);
-                  } catch (error) {
-                    console.error('Error saving profile:', error);
-                    setProfileError('Failed to save profile. Please try again.');
-                  } finally {
-                    setProfileLoading(false);
-                  }
-                }}
-                disabled={profileLoading}
-                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-3 rounded-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                <Save size={18} />
-                {profileLoading ? 'Saving...' : 'Save Profile'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            if (result.error) {
+              throw result.error;
+            }
+            
+            setProfileSuccess('Profile saved successfully!');
+            setTimeout(() => {
+              setShowProfile(false);
+              setProfileSuccess('');
+              setShowAvatarSelector(false);
+            }, 1000);
+          } catch (error) {
+            console.error('Error saving profile:', error);
+            setProfileError('Failed to save profile. Please try again.');
+          } finally {
+            setProfileLoading(false);
+          }
+        }}
+      />
 
       {/* Move Book Modal */}
-      {showMoveModal && bookToMove && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setShowMoveModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">📚</span>
-                <BookOpen className="w-6 h-6 text-indigo-600" />
-                <h2 className="text-2xl font-bold text-gray-900">Move Book</h2>
-              </div>
-              <button onClick={() => setShowMoveModal(false)} className="text-gray-400 hover:text-gray-600">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            
-            <div className="p-6">
-              <div className="mb-6">
-                <div className="flex gap-4 items-center">
-                  <img
-                    src={bookToMove.coverUrl}
-                    alt={bookToMove.title}
-                    className="w-24 h-36 object-cover rounded-lg shadow-lg"
-                    onError={(e) => {
-                      e.target.src = `https://via.placeholder.com/200x300/4F46E5/FFFFFF?text=${encodeURIComponent(bookToMove.title)}`;
-                    }}
-                  />
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-1">{bookToMove.title}</h3>
-                    <p className="text-gray-600">{bookToMove.author || 'Unknown Author'}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">Select Destination Bookshelf</label>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {bookshelves
-                    .filter(shelf => {
-                      // Don't show the current shelf the book is in
-                      const currentShelf = bookshelves.find(s => s.books.some(b => b.id === bookToMove.id));
-                      return shelf.id !== currentShelf?.id;
-                    })
-                    .map((shelf) => {
-                      const theme = ANIMAL_THEMES[shelf.animal] || ANIMAL_THEMES.cat;
-                      const isFull = shelf.type === 'regular' && shelf.books.length >= 10;
-                      const isSpecialShelf = shelf.type === 'wishlist' || shelf.type === 'favorites';
-                      return (
-                        <button
-                          key={shelf.id}
-                          onClick={() => !isFull && handleMoveBook(bookToMove.id, shelf.id)}
-                          disabled={isFull}
-                          className={`w-full text-left p-4 border-2 rounded-xl transition-all ${
-                            isFull
-                              ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
-                              : 'border-gray-200 hover:border-indigo-500 hover:bg-indigo-50'
-                          }`}
-                          title={isSpecialShelf ? 'Unlimited capacity' : ''}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className="text-2xl">{theme.emoji}</span>
-                              <div>
-                                <div className="font-semibold text-gray-900">{shelf.name}</div>
-                                <div className="text-sm text-gray-600">
-                                  {shelf.type === 'wishlist' && '❤️ Wishlist'}
-                                  {shelf.type === 'favorites' && '⭐ Favorites (unlimited)'}
-                                  {(!shelf.type || shelf.type === 'regular') && `${shelf.books.length}/10 books`}
-                                </div>
-                              </div>
-                            </div>
-                            {isFull && (
-                              <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">Full</span>
-                            )}
-                            {isSpecialShelf && !isFull && (
-                              <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">Unlimited</span>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <MoveBookModal
+        show={showMoveModal}
+        bookToMove={bookToMove}
+        bookshelves={bookshelves}
+        onClose={() => setShowMoveModal(false)}
+        onMove={handleMoveBook}
+      />
 
       {/* Login Modal */}
-      {showLoginModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative">
-            {/* Close Button */}
-            <button
-              onClick={() => {
-                setShowLoginModal(false);
-                setEmailSent(false);
-                setLoginEmail('');
-                setLoginPassword('');
-                setConfirmPassword('');
-                setIsVerifying(false);
-                setLoginMode('password');
-                setPasswordMode('login');
-                // If no user is logged in and default user exists, use it
-                if (!currentUser && defaultUser) {
-                  setCurrentUser(defaultUser);
-                }
-              }}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
-              title="Close"
-            >
-              <X className="w-6 h-6" />
-            </button>
-
-            <div className="text-center mb-6">
-              <div className="text-6xl mb-4">📚</div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome to Bookshelf</h2>
-              <p className="text-gray-600">
-                {emailSent 
-                  ? 'Check your email for the magic link to sign in'
-                  : 'Sign in with your email to access your personal bookshelf'
-                }
-              </p>
-            </div>
-
-            {!emailSent ? (
-              <div className="space-y-4">
-                {/* Login Mode Toggle */}
-                <div className="flex gap-2 mb-4">
-                  <button
-                    onClick={() => {
-                      setLoginMode('password');
-                      setLoginPassword('');
-                      setEmailSent(false);
-                    }}
-                    className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                      loginMode === 'password'
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    Password
-                  </button>
-                  <button
-                    onClick={() => {
-                      setLoginMode('magiclink');
-                      setLoginPassword('');
-                      setEmailSent(false);
-                    }}
-                    className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                      loginMode === 'magiclink'
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    Magic Link
-                  </button>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        if (loginMode === 'password') {
-                          handlePasswordLogin();
-                        } else {
-                          handleEmailLogin();
-                        }
-                      }
-                    }}
-                    placeholder="your.email@example.com"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    disabled={isVerifying}
-                  />
-                </div>
-
-                {loginMode === 'password' && (
-                  <>
-                    {/* Sign In / Create Account Toggle */}
-                    <div className="flex gap-2 mb-4">
-                      <button
-                        onClick={() => {
-                          setPasswordMode('login');
-                          setLoginPassword('');
-                          setConfirmPassword('');
-                        }}
-                        className={`flex-1 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                          passwordMode === 'login'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        Sign In
-                      </button>
-                      <button
-                        onClick={() => {
-                          setPasswordMode('signup');
-                          setLoginPassword('');
-                          setConfirmPassword('');
-                        }}
-                        className={`flex-1 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                          passwordMode === 'signup'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        Create Account
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Password
-                      </label>
-                      <input
-                        type="password"
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') {
-                            handlePasswordLogin();
-                          }
-                        }}
-                        placeholder={passwordMode === 'signup' ? 'Create a password (min 6 characters)' : 'Enter your password'}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        disabled={isVerifying}
-                      />
-                    </div>
-
-                    {passwordMode === 'signup' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Confirm Password
-                        </label>
-                        <input
-                          type="password"
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              handlePasswordLogin();
-                            }
-                          }}
-                          placeholder="Confirm your password"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          disabled={isVerifying}
-                        />
-                      </div>
-                    )}
-                  </>
-                )}
-
-                <button
-                  onClick={loginMode === 'password' ? handlePasswordLogin : handleEmailLogin}
-                  disabled={
-                    isVerifying || 
-                    !loginEmail.trim() || 
-                    (loginMode === 'password' && !loginPassword.trim()) ||
-                    (loginMode === 'password' && passwordMode === 'signup' && !confirmPassword.trim())
-                  }
-                  className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-3 rounded-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                >
-                  {isVerifying 
-                    ? (loginMode === 'password' 
-                        ? (passwordMode === 'signup' ? 'Creating account...' : 'Signing in...') 
-                        : 'Sending...') 
-                    : (loginMode === 'password' 
-                        ? (passwordMode === 'signup' ? 'Create Account' : 'Sign In') 
-                        : 'Send Magic Link')
-                  }
-                </button>
-
-                {!authUser && defaultUser && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <p className="text-sm text-gray-600 text-center mb-2">
-                      Or continue with default account
-                    </p>
-                    <button
-                      onClick={() => {
-                        setShowLoginModal(false);
-                        setCurrentUser(defaultUser);
-                      }}
-                      className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition-colors"
-                    >
-                      Continue as {defaultUser.username}
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="text-2xl">✉️</div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-blue-900 mb-1">
-                        Magic link sent!
-                      </p>
-                      <p className="text-sm text-blue-700">
-                        We've sent a sign-in link to <strong>{loginEmail}</strong>. 
-                        Click the link in the email to verify and access your account.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {isVerifying && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <p className="text-sm text-yellow-800">
-                      ⏳ Waiting for email verification... You'll be signed in automatically once you click the link.
-                    </p>
-                  </div>
-                )}
-
-                <button
-                  onClick={() => {
-                    setEmailSent(false);
-                    setLoginEmail('');
-                    setLoginPassword('');
-                    setConfirmPassword('');
-                    setIsVerifying(false);
-                    setLoginMode('password');
-                    setPasswordMode('login');
-                  }}
-                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition-colors"
-                >
-                  Use Different Email
-                </button>
-
-                {!authUser && defaultUser && (
-                  <button
-                    onClick={() => {
-                      setShowLoginModal(false);
-                      setEmailSent(false);
-                      setCurrentUser(defaultUser);
-                    }}
-                    className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition-colors"
-                  >
-                    Continue with Default Account
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <LoginModal
+        show={showLoginModal}
+        loginEmail={loginEmail}
+        loginPassword={loginPassword}
+        confirmPassword={confirmPassword}
+        loginMode={loginMode}
+        passwordMode={passwordMode}
+        emailSent={emailSent}
+        isVerifying={isVerifying}
+        authUser={authUser}
+        defaultUser={defaultUser}
+        onClose={() => {
+          setShowLoginModal(false);
+          setEmailSent(false);
+          setLoginEmail('');
+          setLoginPassword('');
+          setConfirmPassword('');
+          setIsVerifying(false);
+          setLoginMode('password');
+          setPasswordMode('login');
+          if (!currentUser && defaultUser) {
+            setCurrentUser(defaultUser);
+          }
+        }}
+        onEmailChange={setLoginEmail}
+        onPasswordChange={setLoginPassword}
+        onConfirmPasswordChange={setConfirmPassword}
+        onLoginModeChange={(mode) => {
+          setLoginMode(mode);
+          setLoginPassword('');
+          setEmailSent(false);
+        }}
+        onPasswordModeChange={(mode) => {
+          setPasswordMode(mode);
+          setLoginPassword('');
+          setConfirmPassword('');
+        }}
+        onPasswordLogin={handlePasswordLogin}
+        onEmailLogin={handleEmailLogin}
+        onUseDefaultUser={(user) => setCurrentUser(user)}
+      />
 
       {/* About Modal */}
       <AboutBookshelfModal show={showAboutModal} onClose={() => setShowAboutModal(false)} />
 
 
       {/* User Comparison Modal */}
-      {showUserComparison && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-3xl font-bold text-gray-900">User Comparison</h2>
-              <button
-                onClick={() => setShowUserComparison(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            
-            {loadingUserStats ? (
-              <div className="text-center py-12">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                <p className="mt-4 text-gray-600">Loading user statistics...</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b-2 border-gray-200">
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">User</th>
-                      <th className="text-center py-3 px-4 font-semibold text-gray-700">Total Books</th>
-                      <th className="text-center py-3 px-4 font-semibold text-gray-700">This Month</th>
-                      <th className="text-center py-3 px-4 font-semibold text-gray-700">Level</th>
-                      <th className="text-center py-3 px-4 font-semibold text-gray-700">XP</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      // Sort users: current user first, then by total books (descending)
-                      const sortedUsers = [...users].sort((a, b) => {
-                        const aIsCurrent = currentUser && a.id === currentUser.id;
-                        const bIsCurrent = currentUser && b.id === currentUser.id;
-                        
-                        // Current user always first
-                        if (aIsCurrent && !bIsCurrent) return -1;
-                        if (!aIsCurrent && bIsCurrent) return 1;
-                        
-                        // Then sort by total books (descending)
-                        const aBooks = getTotalBooksRead(a.id);
-                        const bBooks = getTotalBooksRead(b.id);
-                        return bBooks - aBooks;
-                      });
-                      
-                      return sortedUsers.map((user) => {
-                        const totalBooks = getTotalBooksRead(user.id);
-                        const monthlyBooks = getBooksReadThisMonth(user.id);
-                        const isCurrentUser = currentUser && user.id === currentUser.id;
-                        const profile = userProfiles[user.id];
-                        const displayName = profile?.name?.trim() || user.username || user.email || 'Unknown User';
-                        const avatar = profile?.avatar || '👤';
-                        const userXP = userStats[user.id]?.xp || 0;
-                        const userLevel = userStats[user.id]?.level || 1;
-                        
-                        return (
-                          <tr
-                            key={user.id}
-                            className={`border-b border-gray-100 hover:bg-gray-50 ${
-                              isCurrentUser ? 'bg-indigo-50' : ''
-                            }`}
-                          >
-                            <td className="py-4 px-4">
-                              <div className="flex items-center gap-3">
-                                <span className="text-2xl">{avatar}</span>
-                                <span className={`font-medium ${isCurrentUser ? 'text-indigo-600' : 'text-gray-900'}`}>
-                                  {displayName}
-                                  {isCurrentUser && <span className="ml-2 text-xs text-indigo-500">(You)</span>}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="text-center py-4 px-4">
-                              <span className="text-lg font-semibold text-gray-900">{totalBooks}</span>
-                            </td>
-                            <td className="text-center py-4 px-4">
-                              <span className="text-lg font-semibold text-indigo-600">{monthlyBooks}</span>
-                            </td>
-                            <td className="text-center py-4 px-4">
-                              <span className="text-lg font-semibold text-yellow-600">Level {userLevel}</span>
-                            </td>
-                            <td className="text-center py-4 px-4">
-                              <span className="text-lg font-semibold text-orange-600">{userXP.toLocaleString()}</span>
-                            </td>
-                          </tr>
-                        );
-                      });
-                    })()}
-                  </tbody>
-                </table>
-                
-                {users.length === 0 && (
-                  <div className="text-center py-12 text-gray-500">
-                    No users found. Create an account to get started!
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <UserComparisonModal
+        show={showUserComparison}
+        users={users}
+        currentUser={currentUser}
+        userProfiles={userProfiles}
+        userStats={userStats}
+        loadingUserStats={loadingUserStats}
+        onClose={() => setShowUserComparison(false)}
+        getTotalBooksRead={getTotalBooksRead}
+        getBooksReadThisMonth={getBooksReadThisMonth}
+      />
 
       {/* Level Up Modal */}
-      {showLevelUpModal && levelUpData && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-yellow-400 via-orange-400 to-pink-500 rounded-2xl shadow-2xl p-8 max-w-md w-full text-center animate-bounce">
-            <div className="text-8xl mb-4">🎉</div>
-            <h2 className="text-4xl font-bold text-white mb-2">LEVEL UP!</h2>
-            <p className="text-2xl font-semibold text-white mb-4">
-              You've reached Level {levelUpData.level}!
-            </p>
-            <p className="text-white/90 mb-6">
-              Total XP: {levelUpData.xp}
-            </p>
-            <button
-              onClick={() => {
-                setShowLevelUpModal(false);
-                setLevelUpData(null);
-              }}
-              className="px-6 py-3 bg-white text-orange-600 rounded-lg font-bold hover:bg-gray-100 transition-colors"
-            >
-              Awesome!
-            </button>
-          </div>
-        </div>
-      )}
+      <LevelUpModal
+        show={showLevelUpModal}
+        levelUpData={levelUpData}
+        onClose={() => {
+          setShowLevelUpModal(false);
+          setLevelUpData(null);
+        }}
+      />
 
       {/* Achievement Modal */}
-      {showAchievementModal && newAchievement && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-purple-500 via-pink-500 to-red-500 rounded-2xl shadow-2xl p-8 max-w-md w-full text-center animate-pulse">
-            <div className="text-8xl mb-4">{newAchievement.badge_emoji}</div>
-            <h2 className="text-3xl font-bold text-white mb-2">Achievement Unlocked!</h2>
-            <p className="text-2xl font-semibold text-white mb-2">
-              {newAchievement.badge_name}
-            </p>
-            <p className="text-white/90 mb-6">
-              {newAchievement.badge_description}
-            </p>
-            <button
-              onClick={() => {
-                setShowAchievementModal(false);
-                setNewAchievement(null);
-              }}
-              className="px-6 py-3 bg-white text-purple-600 rounded-lg font-bold hover:bg-gray-100 transition-colors"
-            >
-              Amazing!
-            </button>
-          </div>
-        </div>
-      )}
+      <AchievementModal
+        show={showAchievementModal}
+        achievement={newAchievement}
+        onClose={() => {
+          setShowAchievementModal(false);
+          setNewAchievement(null);
+        }}
+      />
 
     </div>
   );
