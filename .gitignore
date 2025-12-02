@@ -13,6 +13,9 @@ build/
 .env.production
 .env.development
 
+#Database
+database/
+
 # IDE
 .vscode/
 .idea/
