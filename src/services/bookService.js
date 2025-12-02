@@ -209,10 +209,30 @@ export const moveBook = async (bookId, newBookshelfId) => {
  * @returns {object} Book object in app format
  */
 export const transformBookFromDB = (dbBook) => {
+  // Helper function to format date for HTML date input (YYYY-MM-DD)
+  const formatDateForInput = (dateValue) => {
+    if (!dateValue) return null;
+    // If it's already in YYYY-MM-DD format, return as is
+    if (typeof dateValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+      return dateValue;
+    }
+    // If it's an ISO date string or Date object, extract YYYY-MM-DD
+    try {
+      const date = new Date(dateValue);
+      if (isNaN(date.getTime())) return null;
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    } catch (e) {
+      return null;
+    }
+  };
+
   return {
     id: dbBook.id,
     title: dbBook.title,
-    author: dbBook.author,
+    author: dbBook.author ? String(dbBook.author).trim() : null,
     coverUrl: dbBook.cover_url,
     description: dbBook.description,
     favoriteCharacter: dbBook.favorite_character,
@@ -221,8 +241,8 @@ export const transformBookFromDB = (dbBook) => {
     review: dbBook.review,
     leastFavoritePart: dbBook.least_favorite_part,
     rating: dbBook.rating,
-    startDate: dbBook.start_date,
-    finishDate: dbBook.finish_date,
+    startDate: formatDateForInput(dbBook.start_date),
+    finishDate: formatDateForInput(dbBook.finish_date),
     addedDate: dbBook.added_date
   };
 };

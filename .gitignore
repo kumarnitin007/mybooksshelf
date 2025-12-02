@@ -15,6 +15,12 @@ build/
 
 #Database
 database/
+*.sql
+
+#MD Files
+*.md
+*.sql
+
 
 # IDE
 .vscode/

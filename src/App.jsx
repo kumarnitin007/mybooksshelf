@@ -22,7 +22,9 @@ import Header from './components/layout/Header';
 import UserStatsSection from './components/layout/UserStatsSection';
 import BookshelfDisplay from './components/bookshelf/BookshelfDisplay';
 import { ANIMAL_THEMES } from './constants/animalThemes';
+import { getPlaceholderImage } from './utils/imageHelpers';
 import { isAgeAppropriate } from './utils/contentFilter';
+import { BOOK_RECOMMENDATIONS } from './data/recommendations';
 import { getBooksReadThisMonth as getBooksThisMonth, calculateAverageBooksPerMonth, findMostReadAuthor } from './utils/bookHelpers';
 import { useAuth } from './hooks/useAuth';
 import { useGamification } from './hooks/useGamification';
@@ -606,7 +608,7 @@ export default function App() {
             author: doc.author_name ? doc.author_name[0] : 'Unknown Author',
             coverUrl: doc.cover_i 
               ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`
-              : `https://via.placeholder.com/200x300/4F46E5/FFFFFF?text=${encodeURIComponent(doc.title || 'Book')}`,
+              : getPlaceholderImage(doc.title || 'Book'),
             description: doc.first_sentence ? (Array.isArray(doc.first_sentence) ? doc.first_sentence[0] : doc.first_sentence) : '',
             isbn: doc.isbn ? doc.isbn[0] : null,
             key: doc.key
@@ -818,7 +820,7 @@ export default function App() {
           const bookData = {
             title: newBook.title,
             author: newBook.author || '',
-            coverUrl: newBook.coverUrl || `https://via.placeholder.com/200x300/4F46E5/FFFFFF?text=${encodeURIComponent(newBook.title)}`,
+            coverUrl: newBook.coverUrl || getPlaceholderImage(newBook.title),
             description: newBook.description || '',
             favoriteCharacter: newBook.favoriteCharacter || '',
             sceneSummary: newBook.sceneSummary || '',
@@ -1316,29 +1318,13 @@ export default function App() {
       const allRecs = [];
       
       // Always generate recommendations, even if there are no rated books
-      // Expanded recommendation pool - all books are age-appropriate for teens
-      const recommendationPool = [
-        { title: "The Hunger Games", author: "Suzanne Collins", reason: topRated.length > 0 ? `Based on your love for ${topRated[0].title}, you might enjoy this thrilling dystopian adventure with a strong female protagonist.` : "A thrilling dystopian adventure with a strong female protagonist that many readers love." },
-        { title: "Project Hail Mary", author: "Andy Weir", reason: topRated.length > 0 ? `If you enjoyed ${topRated[0].title}, this science fiction adventure might be right up your alley.` : "An exciting science fiction adventure that combines humor, science, and suspense." },
-        { title: "The Midnight Library", author: "Matt Haig", reason: "A thought-provoking novel about life choices and second chances that could resonate with you." },
-        { title: "The Book Thief", author: "Markus Zusak", reason: "A powerful historical fiction novel set in Nazi Germany that explores the power of words and stories." },
-        { title: "Percy Jackson and the Lightning Thief", author: "Rick Riordan", reason: topRated.length > 0 ? `If you enjoyed ${topRated[0].title}, this exciting mythological adventure might appeal to you.` : "An exciting modern take on Greek mythology with humor and adventure." },
-        { title: "The Maze Runner", author: "James Dashner", reason: topRated.length > 0 ? `Fans of ${topRated[0].title} often love this thrilling dystopian mystery with non-stop action.` : "A thrilling dystopian mystery with non-stop action and suspense." },
-        { title: "Divergent", author: "Veronica Roth", reason: "An exciting dystopian story with strong characters and themes of identity and choice." },
-        { title: "The Fault in Our Stars", author: "John Green", reason: "A beautifully written contemporary story about friendship, love, and finding meaning in life." },
-        { title: "Wonder", author: "R.J. Palacio", reason: "An inspiring story about kindness, acceptance, and seeing beyond appearances." },
-        { title: "The Giver", author: "Lois Lowry", reason: "A thought-provoking classic dystopian novel that explores memory, emotion, and what it means to be human." },
-        { title: "Dune", author: "Frank Herbert", reason: "An epic science fiction classic with rich world-building and complex themes." },
-        { title: "The Name of the Wind", author: "Patrick Rothfuss", reason: "A fantasy novel with rich world-building and compelling storytelling." },
-        { title: "The Alchemist", author: "Paulo Coelho", reason: "A philosophical and inspiring tale about following your dreams and finding your personal legend." },
-        { title: "The Chronicles of Narnia: The Lion, the Witch and the Wardrobe", author: "C.S. Lewis", reason: "A classic fantasy adventure that transports readers to a magical world." },
-        { title: "Ender's Game", author: "Orson Scott Card", reason: "A science fiction classic about strategy, leadership, and the cost of war." },
-        { title: "The Hobbit", author: "J.R.R. Tolkien", reason: "A classic fantasy adventure following Bilbo Baggins on an unexpected journey." },
-        { title: "To Kill a Mockingbird", author: "Harper Lee", reason: "A powerful coming-of-age story about justice, morality, and growing up in the American South." },
-        { title: "The Outsiders", author: "S.E. Hinton", reason: "A classic story about friendship, belonging, and the struggles of youth." },
-        { title: "The Hate U Give", author: "Angie Thomas", reason: "A powerful contemporary novel about finding your voice and standing up for what's right." },
-        { title: "The Lightning Thief", author: "Rick Riordan", reason: "An exciting modern take on Greek mythology with humor, adventure, and relatable characters." }
-      ];
+      // Use the expanded recommendation pool from data file
+      const recommendationPool = BOOK_RECOMMENDATIONS.map(book => ({
+        ...book,
+        reason: topRated.length > 0 && Math.random() > 0.7 
+          ? `Based on your love for ${topRated[0].title}, you might enjoy ${book.title}. ${book.reason}`
+          : book.reason
+      }));
       
       // Filter to ensure all recommendations are age-appropriate
       const ageAppropriateRecs = recommendationPool.filter(rec => 
@@ -1406,7 +1392,7 @@ export default function App() {
         const bookData = {
           title: rec.title,
           author: rec.author || '',
-          coverUrl: `https://via.placeholder.com/200x300/EC4899/FFFFFF?text=${encodeURIComponent(rec.title)}`,
+          coverUrl: getPlaceholderImage(rec.title),
           description: rec.reason || '',
           favoriteCharacter: '',
           sceneSummary: '',
@@ -1447,7 +1433,7 @@ export default function App() {
             id: savedBook?.id || Date.now(),
             title: rec.title,
             author: rec.author,
-            coverUrl: `https://via.placeholder.com/200x300/EC4899/FFFFFF?text=${encodeURIComponent(rec.title)}`,
+            coverUrl: getPlaceholderImage(rec.title),
             description: rec.reason,
             addedDate: new Date().toISOString()
           }]
@@ -1758,7 +1744,7 @@ export default function App() {
         memorableMoments: memorableMomentsIndex >= 0 ? values[memorableMomentsIndex]?.replace(/^"|"$/g, '') || '' : '',
         review: reviewIndex >= 0 ? values[reviewIndex]?.replace(/^"|"$/g, '') || '' : '',
         leastFavoritePart: leastFavoritePartIndex >= 0 ? values[leastFavoritePartIndex]?.replace(/^"|"$/g, '') || '' : '',
-        coverUrl: `https://via.placeholder.com/200x300/4F46E5/FFFFFF?text=${encodeURIComponent(values[titleIndex]?.replace(/^"|"$/g, '') || 'Book')}`
+        coverUrl: getPlaceholderImage(values[titleIndex]?.replace(/^"|"$/g, '') || 'Book')
       };
 
       if (!bookData.title) continue;
@@ -1863,7 +1849,7 @@ export default function App() {
         memorableMoments: book.memorableMoments || '',
         review: book.review || '',
         leastFavoritePart: book.leastFavoritePart || '',
-        coverUrl: book.coverUrl || `https://via.placeholder.com/200x300/4F46E5/FFFFFF?text=${encodeURIComponent(book.title || 'Book')}`
+        coverUrl: book.coverUrl || getPlaceholderImage(book.title || 'Book')
       };
 
       // Create book
@@ -2367,7 +2353,19 @@ export default function App() {
           pendingFailedUpdatesRef={pendingFailedUpdatesRef}
           setFailedImages={setFailedImages}
           onBookClick={(book) => {
-            setSelectedBook(book);
+            // Use activeShelf if available, otherwise search for the book's bookshelf
+            let bookShelf = activeShelf;
+            if (!bookShelf || !bookShelf.books.some(b => b.id === book.id)) {
+              bookShelf = bookshelves.find(shelf => 
+                shelf.books.some(b => b.id === book.id)
+              );
+            }
+            
+            setSelectedBook({
+              ...book,
+              bookshelfName: bookShelf?.name || activeShelf?.name || 'Unknown Bookshelf',
+              bookshelfAnimal: bookShelf?.animal || activeShelf?.animal || 'cat'
+            });
             setShowDetailsModal(true);
           }}
           onExportCSV={exportToCSV}
@@ -2396,6 +2394,8 @@ export default function App() {
         show={showDetailsModal}
         selectedBook={selectedBook}
         setSelectedBook={setSelectedBook}
+        currentUser={currentUser}
+        userProfile={userProfile}
         onClose={() => setShowDetailsModal(false)}
         onUpdateBook={handleUpdateBook}
         onImageUpload={handleImageUpload}

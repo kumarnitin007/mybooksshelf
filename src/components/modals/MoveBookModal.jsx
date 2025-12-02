@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, BookOpen } from 'lucide-react';
 import { ANIMAL_THEMES } from '../../constants/animalThemes';
+import { getPlaceholderImage } from '../../utils/imageHelpers';
 
 /**
  * MoveBookModal Component
@@ -37,7 +38,7 @@ export default function MoveBookModal({ show, bookToMove, bookshelves, onClose, 
                 alt={bookToMove.title}
                 className="w-24 h-36 object-cover rounded-lg shadow-lg"
                 onError={(e) => {
-                  e.target.src = `https://via.placeholder.com/200x300/4F46E5/FFFFFF?text=${encodeURIComponent(bookToMove.title)}`;
+                  e.target.src = getPlaceholderImage(bookToMove.title);
                 }}
               />
               <div>

@@ -12,7 +12,7 @@ export default function BookSpine({ book, index, onClick }) {
   return (
     <button
       key={book.id}
-      onClick={onClick}
+      onClick={() => onClick(book)}
       className="relative group"
       style={{ 
         perspective: '1000px',

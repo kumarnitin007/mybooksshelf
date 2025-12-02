@@ -60,7 +60,7 @@ export default function BookCard({
   return (
     <div key={book.id} className="group relative">
       <button
-        onClick={onClick}
+        onClick={() => onClick(book)}
         className="w-full"
       >
         <div className="transform transition-all hover:scale-105 hover:-translate-y-2">
