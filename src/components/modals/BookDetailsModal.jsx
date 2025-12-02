@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { X, Star, User, Heart, Upload, Image as ImageIcon, Library, Save } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, Star, User, Heart, Upload, Image as ImageIcon, Library, Save, Sparkles, ChevronDown, ChevronUp, ShoppingCart, Book } from 'lucide-react';
 import { ANIMAL_THEMES } from '../../constants/animalThemes';
 import { getPlaceholderImage } from '../../utils/imageHelpers';
+import { getBookFacts, addBookFacts } from '../../services/gamificationService';
+import { generateBookFacts } from '../../utils/bookFactsGenerator';
 
 /**
  * BookDetailsModal Component
@@ -33,6 +35,61 @@ export default function BookDetailsModal({
   const [localBook, setLocalBook] = useState(selectedBook);
   const [originalBook, setOriginalBook] = useState(selectedBook);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [bookFacts, setBookFacts] = useState([]);
+  const [isLoadingFacts, setIsLoadingFacts] = useState(false);
+  const [isGetBookExpanded, setIsGetBookExpanded] = useState(true); // Expanded by default
+
+  // Load book facts from database, or generate and save them if they don't exist
+  const loadBookFacts = useCallback(async () => {
+    if (!selectedBook?.id) {
+      setBookFacts([]);
+      return;
+    }
+
+    setIsLoadingFacts(true);
+    try {
+      const { data, error } = await getBookFacts(selectedBook.id);
+      
+      if (error) {
+        // If table doesn't exist or other error, just skip facts - don't crash
+        console.warn('Book facts not available:', error.message || error);
+        setBookFacts([]);
+      } else if (data && data.length > 0) {
+        // Facts exist, use them (handle different possible column names)
+        setBookFacts(data.map(fact => fact.fact_text || fact.fact || fact.text || '').filter(f => f));
+      } else {
+        // No facts exist, generate and save them
+        try {
+          const facts = generateBookFacts(selectedBook.title, selectedBook.author, 3);
+          if (facts.length > 0) {
+            try {
+              const { data: savedFacts, error: saveError } = await addBookFacts(selectedBook.id, facts);
+              if (!saveError && savedFacts) {
+                setBookFacts(facts);
+              } else {
+                // If save fails (maybe table doesn't exist), still show facts
+                console.warn('Could not save book facts:', saveError?.message || saveError);
+                setBookFacts(facts);
+              }
+            } catch (saveErr) {
+              // If save throws error, still show facts
+              console.warn('Error saving book facts:', saveErr);
+              setBookFacts(facts);
+            }
+          }
+        } catch (genErr) {
+          console.warn('Error generating book facts:', genErr);
+          setBookFacts([]);
+        }
+      }
+    } catch (error) {
+      // Catch any unexpected errors and continue - don't crash the component
+      console.warn('Error in loadBookFacts:', error);
+      setBookFacts([]);
+    } finally {
+      setIsLoadingFacts(false);
+    }
+  }, [selectedBook?.id, selectedBook?.title, selectedBook?.author]);
 
   // Update local book and original when selectedBook changes (modal opens or book changes)
   useEffect(() => {
@@ -40,8 +97,9 @@ export default function BookDetailsModal({
       setLocalBook(selectedBook);
       setOriginalBook(selectedBook);
       setHasUnsavedChanges(false);
+      loadBookFacts();
     }
-  }, [selectedBook?.id]); // Only reset when the book ID changes (different book selected)
+  }, [selectedBook?.id, loadBookFacts]); // Only reset when the book ID changes (different book selected)
 
   if (!show || !selectedBook) return null;
 
@@ -250,38 +308,136 @@ export default function BookDetailsModal({
             </div>
           )}
 
-          {/* Library Availability Checker */}
-          <div className="mb-6 mt-6 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border border-blue-200">
-            <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <Library className="w-5 h-5 text-blue-600" />
-              Check Library Availability
-            </h3>
-            <p className="text-sm text-gray-600 mb-3">
-              Check if this book is available at your local libraries
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <a
-                href={`https://www.sno-isle.org/catalog?q=${encodeURIComponent((localBook?.title || selectedBook.title) + ((localBook?.author || selectedBook.author) ? ' ' + (localBook?.author || selectedBook.author) : ''))}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-              >
-                <Library className="w-4 h-4" />
-                Sno-Isle Libraries
-              </a>
-              <a
-                href={`https://kcls.bibliocommons.com/v2/search?query=${encodeURIComponent((localBook?.title || selectedBook.title) + ((localBook?.author || selectedBook.author) ? ' ' + (localBook?.author || selectedBook.author) : ''))}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-              >
-                <Library className="w-4 h-4" />
-                KCLS (King County)
-              </a>
+          {/* Book Facts Section */}
+          {bookFacts.length > 0 && (
+            <div className={`mb-6 mt-6 p-4 bg-gradient-to-r ${theme.colors.secondary} rounded-lg border-2 ${theme.colors.accent} border-opacity-30`}>
+              <h3 className={`font-semibold ${theme.colors.accent} mb-3 flex items-center gap-2`}>
+                <Sparkles className={`w-5 h-5 ${theme.colors.accent}`} />
+                Fun Book Facts!
+              </h3>
+              {isLoadingFacts ? (
+                <p className="text-sm text-gray-600">Loading facts...</p>
+              ) : (
+                <ul className="space-y-2">
+                  {bookFacts.map((fact, index) => (
+                    <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
+                      <span className="text-lg">✨</span>
+                      <span>{fact}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Opens library catalog in a new tab. You may need to search manually if the book isn't found automatically.
-            </p>
+          )}
+
+          {/* Get the Book Section - Collapsible */}
+          <div className="mb-6 mt-6 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border border-blue-200">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsGetBookExpanded(!isGetBookExpanded);
+              }}
+              className="w-full p-4 flex items-center justify-between text-left hover:bg-blue-100/50 transition-colors rounded-lg"
+              title={isGetBookExpanded ? "Click to collapse" : "Click to see where to get this book"}
+            >
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <Library className="w-5 h-5 text-blue-600" />
+                Get the Book
+              </h3>
+              {isGetBookExpanded ? (
+                <ChevronUp className="w-5 h-5 text-blue-600" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-blue-600" />
+              )}
+            </button>
+            {isGetBookExpanded && (
+              <div className="px-4 pb-4 space-y-3">
+                <p className="text-sm text-gray-600">
+                  Find this book at libraries, bookstores, or online retailers
+                </p>
+                
+                {/* Libraries */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">📚 Public Libraries</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <a
+                      href={`https://www.sno-isle.org/search?q=${encodeURIComponent((localBook?.title || selectedBook.title) + ((localBook?.author || selectedBook.author) ? ' ' + (localBook?.author || selectedBook.author) : ''))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm"
+                    >
+                      <Library className="w-4 h-4" />
+                      Sno-Isle Libraries
+                    </a>
+                    <a
+                      href={`https://kcls.bibliocommons.com/v2/search?query=${encodeURIComponent((localBook?.title || selectedBook.title) + ((localBook?.author || selectedBook.author) ? ' ' + (localBook?.author || selectedBook.author) : ''))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium shadow-sm"
+                    >
+                      <Library className="w-4 h-4" />
+                      KCLS (King County)
+                    </a>
+                    <a
+                      href={`https://seattle.bibliocommons.com/v2/search?query=${encodeURIComponent((localBook?.title || selectedBook.title) + ((localBook?.author || selectedBook.author) ? ' ' + (localBook?.author || selectedBook.author) : ''))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium shadow-sm"
+                    >
+                      <Library className="w-4 h-4" />
+                      Seattle Public Library
+                    </a>
+                  </div>
+                </div>
+
+                {/* Online Retailers */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">🛒 Online Retailers</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <a
+                      href={`https://www.amazon.com/s?k=${encodeURIComponent((localBook?.title || selectedBook.title) + ((localBook?.author || selectedBook.author) ? ' ' + (localBook?.author || selectedBook.author) : ''))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium shadow-sm"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      Amazon
+                    </a>
+                    <a
+                      href={`https://www.barnesandnoble.com/s/${encodeURIComponent((localBook?.title || selectedBook.title) + ((localBook?.author || selectedBook.author) ? ' ' + (localBook?.author || selectedBook.author) : ''))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      Barnes & Noble
+                    </a>
+                    <a
+                      href={`https://www.goodreads.com/search?q=${encodeURIComponent((localBook?.title || selectedBook.title) + ((localBook?.author || selectedBook.author) ? ' ' + (localBook?.author || selectedBook.author) : ''))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium shadow-sm"
+                    >
+                      <Book className="w-4 h-4" />
+                      Goodreads
+                    </a>
+                    <a
+                      href={`https://www.thriftbooks.com/browse/?b.search=${encodeURIComponent((localBook?.title || selectedBook.title) + ((localBook?.author || selectedBook.author) ? ' ' + (localBook?.author || selectedBook.author) : ''))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium shadow-sm"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      ThriftBooks
+                    </a>
+                  </div>
+                </div>
+
+                <p className="text-xs text-gray-500 mt-2">
+                  Opens in a new tab. You may need to search manually if the book isn't found automatically.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 mt-6">

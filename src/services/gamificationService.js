@@ -466,6 +466,43 @@ export const getBookFacts = async (bookId) => {
   }
 };
 
+export const addBookFact = async (bookId, factText) => {
+  try {
+    const { data, error } = await supabase
+      .from('bk_book_facts')
+      .insert([{
+        book_id: bookId,
+        fact_text: factText
+      }])
+      .select()
+      .single();
+
+    return { data, error };
+  } catch (error) {
+    console.error('Error adding book fact:', error);
+    return { data: null, error };
+  }
+};
+
+export const addBookFacts = async (bookId, facts) => {
+  try {
+    const factsToInsert = facts.map(fact => ({
+      book_id: bookId,
+      fact_text: fact
+    }));
+
+    const { data, error } = await supabase
+      .from('bk_book_facts')
+      .insert(factsToInsert)
+      .select();
+
+    return { data, error };
+  } catch (error) {
+    console.error('Error adding book facts:', error);
+    return { data: null, error };
+  }
+};
+
 // Stories
 export const getUserStories = async (userId) => {
   try {
