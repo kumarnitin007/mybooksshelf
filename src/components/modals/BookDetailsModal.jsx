@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, Star, User, Heart, Upload, Image as ImageIcon, Library, Save, Sparkles, ChevronDown, ChevronUp, ShoppingCart, Book } from 'lucide-react';
+import { X, Star, User, Heart, Upload, Image as ImageIcon, Library, Save, Sparkles, ChevronDown, ChevronUp, ShoppingCart, Book, Share2, UserCheck } from 'lucide-react';
 import { ANIMAL_THEMES } from '../../constants/animalThemes';
 import { getPlaceholderImage } from '../../utils/imageHelpers';
 import { getBookFacts, addBookFacts } from '../../services/gamificationService';
 import { generateBookFacts } from '../../utils/bookFactsGenerator';
+import { getUserProfile } from '../../services/userService';
+import ShareBookModal from './ShareBookModal';
 
 /**
  * BookDetailsModal Component
@@ -38,6 +40,8 @@ export default function BookDetailsModal({
   const [bookFacts, setBookFacts] = useState([]);
   const [isLoadingFacts, setIsLoadingFacts] = useState(false);
   const [isGetBookExpanded, setIsGetBookExpanded] = useState(true); // Expanded by default
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [sharerProfile, setSharerProfile] = useState(null);
 
   // Load book facts from database, or generate and save them if they don't exist
   const loadBookFacts = useCallback(async () => {
@@ -56,7 +60,7 @@ export default function BookDetailsModal({
         setBookFacts([]);
       } else if (data && data.length > 0) {
         // Facts exist, use them (handle different possible column names)
-        setBookFacts(data.map(fact => fact.fact_text || fact.fact || fact.text || '').filter(f => f));
+        setBookFacts(data.map(fact => fact.fact_text || fact.content || fact.fact || fact.text || '').filter(f => f));
       } else {
         // No facts exist, generate and save them
         try {
@@ -100,6 +104,22 @@ export default function BookDetailsModal({
       loadBookFacts();
     }
   }, [selectedBook?.id, loadBookFacts]); // Only reset when the book ID changes (different book selected)
+
+  // Load sharer profile if book is shared
+  useEffect(() => {
+    const loadSharerProfile = async () => {
+      if (selectedBook?.sharedBy && selectedBook.sharedBy !== currentUser?.id) {
+        const { data: profile } = await getUserProfile(selectedBook.sharedBy);
+        setSharerProfile(profile);
+      } else {
+        setSharerProfile(null);
+      }
+    };
+    
+    if (show && selectedBook) {
+      loadSharerProfile();
+    }
+  }, [show, selectedBook?.sharedBy, currentUser?.id]);
 
   if (!show || !selectedBook) return null;
 
@@ -202,6 +222,26 @@ export default function BookDetailsModal({
                 <span className="text-lg font-medium text-gray-700">
                   {(localBook?.author || selectedBook.author) && (localBook?.author || selectedBook.author).trim() ? (localBook?.author || selectedBook.author) : 'Unknown Author'}
                 </span>
+              </div>
+              {/* Sharer information */}
+              {(localBook?.sharedBy || selectedBook?.sharedBy) && (localBook?.sharedBy || selectedBook?.sharedBy) !== currentUser?.id && (
+                <div className="flex items-center gap-2 mb-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                  <UserCheck className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm text-gray-700">
+                    Shared by: <span className="font-semibold">{sharerProfile?.name || sharerProfile?.username || 'Unknown User'}</span>
+                    {sharerProfile?.avatar && <span className="ml-2">{sharerProfile.avatar}</span>}
+                  </span>
+                </div>
+              )}
+              <div className="mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Genre</label>
+                <input
+                  type="text"
+                  value={localBook?.genre || selectedBook.genre || ''}
+                  onChange={(e) => handleUpdate({ genre: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  placeholder="e.g., Fiction, Mystery, Science Fiction"
+                />
               </div>
               <div className="flex items-center gap-1 mb-4">
                 {[1, 2, 3, 4, 5].map((star) => (
@@ -451,6 +491,13 @@ export default function BookDetailsModal({
               {hasUnsavedChanges ? 'Save Changes' : 'All Changes Saved ✓'}
             </button>
             <button
+              onClick={() => setShowShareModal(true)}
+              className="flex-1 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-lg flex items-center justify-center gap-2"
+            >
+              <Share2 className="w-5 h-5" />
+              Share Book
+            </button>
+            <button
               onClick={() => onMoveBook(selectedBook)}
               className="flex-1 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium shadow-lg"
             >
@@ -465,6 +512,22 @@ export default function BookDetailsModal({
           </div>
         </div>
       </div>
+
+      {/* Share Book Modal */}
+      <ShareBookModal
+        show={showShareModal}
+        book={selectedBook}
+        currentUser={currentUser}
+        onClose={() => setShowShareModal(false)}
+        onShareSuccess={(shareData) => {
+          // Update local book with sharing info
+          handleUpdate(shareData);
+          // Reload book data if needed
+          if (onUpdateBook) {
+            onUpdateBook(selectedBook.id, shareData);
+          }
+        }}
+      />
     </div>
   );
 }

@@ -1,7 +1,8 @@
 import React from 'react';
-import { X, User, ChevronUp, ChevronDown, Target, Sparkles, MessageSquare, Settings, Save } from 'lucide-react';
+import { X, User, ChevronUp, ChevronDown, Target, Sparkles, MessageSquare, Settings, Save, BookOpen } from 'lucide-react';
 import AvatarSelector from '../AvatarSelector';
 import { isEmailVerified } from '../../services/authService';
+import { getGenreColor } from '../../utils/genreColors';
 
 /**
  * ProfileModal Component
@@ -27,7 +28,6 @@ import { isEmailVerified } from '../../services/authService';
  * @param {object} userStreak - User streak data
  * @param {array} recentAchievements - Recent achievements
  * @param {function} onClose - Callback to close the modal
- * @param {function} onChangeUser - Callback to change user
  * @param {function} onLogout - Callback to logout
  * @param {function} onSave - Callback to save profile
  */
@@ -52,7 +52,6 @@ export default function ProfileModal({
   userStreak,
   recentAchievements,
   onClose,
-  onChangeUser,
   onLogout,
   onSave
 }) {
@@ -100,26 +99,14 @@ export default function ProfileModal({
                     )}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  {authUser && (
-                    <button
-                      onClick={onChangeUser}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-all"
-                      title="Change User"
-                    >
-                      <User className="w-4 h-4" />
-                      <span className="text-sm">Change User</span>
-                    </button>
-                  )}
-                  <button
-                    onClick={onLogout}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-all"
-                    title="Logout"
-                  >
-                    <X className="w-4 h-4" />
-                    <span className="text-sm">Logout</span>
-                  </button>
-                </div>
+                <button
+                  onClick={onLogout}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-all"
+                  title="Logout"
+                >
+                  <X className="w-4 h-4" />
+                  <span className="text-sm">Logout</span>
+                </button>
               </div>
             </div>
           )}
@@ -257,6 +244,68 @@ export default function ProfileModal({
               )}
             </div>
           </div>
+
+          {/* Genre Statistics */}
+          {(() => {
+            const booksWithGenres = allBooks.filter(b => b.genre);
+            if (booksWithGenres.length === 0) return null;
+
+            // Count genres
+            const genreCounts = {};
+            booksWithGenres.forEach(book => {
+              genreCounts[book.genre] = (genreCounts[book.genre] || 0) + 1;
+            });
+
+            // Get top genres
+            const topGenres = Object.entries(genreCounts)
+              .sort(([, a], [, b]) => b - a)
+              .slice(0, 5);
+
+            const totalGenres = Object.keys(genreCounts).length;
+
+            return (
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
+                <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-purple-600" />
+                  Genre Insights
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Total Genres</span>
+                    <span className="text-lg font-bold text-purple-600">{totalGenres}</span>
+                  </div>
+                  {topGenres.length > 0 && (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700 mb-2">Top Genres</p>
+                      <div className="space-y-2">
+                        {topGenres.map(([genre, count]) => {
+                          const percentage = ((count / booksWithGenres.length) * 100).toFixed(0);
+                          const genreColors = getGenreColor(genre);
+                          return (
+                            <div key={genre} className="space-y-1">
+                              <div className="flex items-center justify-between text-sm">
+                                <div className="flex items-center gap-2">
+                                  <span className={`w-3 h-3 rounded-full ${genreColors.bg} border ${genreColors.border}`}></span>
+                                  <span className="font-medium text-gray-700">{genre}</span>
+                                </div>
+                                <span className="text-gray-600">{count} ({percentage}%)</span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className={`h-2 rounded-full ${genreColors.bg} transition-all`}
+                                  style={{ width: `${percentage}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Gamification Stats */}
           {(userXP || userStreak) && (

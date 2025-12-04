@@ -84,6 +84,7 @@ export const createBook = async (bookshelfId, bookData) => {
       bookshelf_id: bookshelfId,
       title: bookData.title,
       author: bookData.author || null,
+      genre: bookData.genre || null,
       cover_url: bookData.coverUrl || null,
       description: bookData.description || null,
       favorite_character: bookData.favoriteCharacter || null,
@@ -140,10 +141,14 @@ export const updateBook = async (bookId, updates) => {
     if (updates.leastFavoritePart !== undefined) dbUpdates.least_favorite_part = updates.leastFavoritePart;
     if (updates.startDate !== undefined) dbUpdates.start_date = updates.startDate;
     if (updates.finishDate !== undefined) dbUpdates.finish_date = updates.finishDate;
+    if (updates.sharedWith !== undefined) dbUpdates.shared_with = updates.sharedWith;
+    if (updates.isPublic !== undefined) dbUpdates.is_public = updates.isPublic;
+    if (updates.sharedBy !== undefined) dbUpdates.shared_by = updates.sharedBy;
+    if (updates.sharedAt !== undefined) dbUpdates.shared_at = updates.sharedAt;
     
-    // Direct mappings
+    // Direct mappings for fields that don't need conversion
     Object.keys(updates).forEach(key => {
-      if (!['coverUrl', 'favoriteCharacter', 'sceneSummary', 'memorableMoments', 'leastFavoritePart', 'startDate', 'finishDate'].includes(key)) {
+      if (!['coverUrl', 'favoriteCharacter', 'sceneSummary', 'memorableMoments', 'leastFavoritePart', 'startDate', 'finishDate', 'sharedWith', 'isPublic', 'sharedBy', 'sharedAt'].includes(key)) {
         dbUpdates[key] = updates[key];
       }
     });
@@ -233,6 +238,7 @@ export const transformBookFromDB = (dbBook) => {
     id: dbBook.id,
     title: dbBook.title,
     author: dbBook.author ? String(dbBook.author).trim() : null,
+    genre: dbBook.genre || null,
     coverUrl: dbBook.cover_url,
     description: dbBook.description,
     favoriteCharacter: dbBook.favorite_character,
@@ -243,7 +249,11 @@ export const transformBookFromDB = (dbBook) => {
     rating: dbBook.rating,
     startDate: formatDateForInput(dbBook.start_date),
     finishDate: formatDateForInput(dbBook.finish_date),
-    addedDate: dbBook.added_date
+    addedDate: dbBook.added_date,
+    sharedWith: dbBook.shared_with || [],
+    isPublic: dbBook.is_public || false,
+    sharedBy: dbBook.shared_by || null,
+    sharedAt: dbBook.shared_at || null
   };
 };
 
@@ -256,6 +266,7 @@ export const transformBookToDB = (appBook) => {
   return {
     title: appBook.title,
     author: appBook.author || null,
+    genre: appBook.genre || null,
     cover_url: appBook.coverUrl || null,
     description: appBook.description || null,
     favorite_character: appBook.favoriteCharacter || null,
@@ -265,8 +276,129 @@ export const transformBookToDB = (appBook) => {
     least_favorite_part: appBook.leastFavoritePart || null,
     rating: appBook.rating || 0,
     start_date: appBook.startDate || null,
-    finish_date: appBook.finishDate || null
+    finish_date: appBook.finishDate || null,
+    shared_with: appBook.sharedWith || [],
+    is_public: appBook.isPublic || false,
+    shared_by: appBook.sharedBy || null,
+    shared_at: appBook.sharedAt || null
   };
+};
+
+/**
+ * Share a book with specific users
+ * @param {string} bookId - The book ID
+ * @param {array} userIds - Array of user IDs to share with
+ * @param {string} sharerId - The user ID who is sharing
+ * @returns {Promise<{data: object|null, error: object|null}>}
+ */
+export const shareBook = async (bookId, userIds, sharerId) => {
+  try {
+    console.log('Sharing book:', { bookId, userIds, sharerId });
+    const { data, error } = await supabase
+      .from('bk_books')
+      .update({ 
+        shared_with: userIds || [],
+        shared_by: sharerId,
+        shared_at: new Date().toISOString()
+      })
+      .eq('id', bookId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error sharing book:', error);
+    } else {
+      console.log('Book shared successfully:', data);
+    }
+    return { data, error };
+  } catch (error) {
+    console.error('Error sharing book (catch):', error);
+    return { data: null, error };
+  }
+};
+
+/**
+ * Make a book publicly recommended
+ * @param {string} bookId - The book ID
+ * @param {boolean} isPublic - Whether to make it public
+ * @returns {Promise<{data: object|null, error: object|null}>}
+ */
+export const setBookPublic = async (bookId, isPublic) => {
+  try {
+    const { data, error } = await supabase
+      .from('bk_books')
+      .update({ is_public: isPublic })
+      .eq('id', bookId)
+      .select()
+      .single();
+
+    return { data, error };
+  } catch (error) {
+    console.error('Error setting book public:', error);
+    return { data: null, error };
+  }
+};
+
+/**
+ * Get books shared with a user
+ * @param {string} userId - The user ID
+ * @returns {Promise<{data: array, error: object|null}>}
+ */
+export const getSharedBooks = async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from('bk_books')
+      .select('*')
+      .contains('shared_with', [userId])
+      .neq('shared_by', userId) // Exclude books shared by the user themselves
+      .order('shared_at', { ascending: false });
+
+    return { data: data || [], error };
+  } catch (error) {
+    console.error('Error fetching shared books:', error);
+    return { data: [], error };
+  }
+};
+
+/**
+ * Get books shared by a user
+ * @param {string} userId - The user ID
+ * @returns {Promise<{data: array, error: object|null}>}
+ */
+export const getBooksSharedByUser = async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from('bk_books')
+      .select('*')
+      .eq('shared_by', userId)
+      .order('shared_at', { ascending: false });
+
+    return { data: data || [], error };
+  } catch (error) {
+    console.error('Error fetching books shared by user:', error);
+    return { data: [], error };
+  }
+};
+
+/**
+ * Get public book recommendations
+ * @param {number} limit - Maximum number of recommendations to return
+ * @returns {Promise<{data: array, error: object|null}>}
+ */
+export const getPublicRecommendations = async (limit = 20) => {
+  try {
+    const { data, error } = await supabase
+      .from('bk_books')
+      .select('*')
+      .eq('is_public', true)
+      .order('shared_at', { ascending: false })
+      .limit(limit);
+
+    return { data: data || [], error };
+  } catch (error) {
+    console.error('Error fetching public recommendations:', error);
+    return { data: [], error };
+  }
 };
 
 /**

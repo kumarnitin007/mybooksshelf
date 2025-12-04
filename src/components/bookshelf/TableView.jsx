@@ -1,5 +1,6 @@
 import React from 'react';
 import { Star, Download, FileUp } from 'lucide-react';
+import { getGenreColor } from '../../utils/genreColors';
 
 /**
  * TableView Component
@@ -62,6 +63,7 @@ export default function TableView({
             <tr>
               <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[200px]">Title</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[150px]">Author</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[100px]">Genre</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[120px]">Bookshelf</th>
               <th className="px-4 py-3 text-center font-semibold text-gray-700 border-b">Rating</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700 border-b min-w-[110px]">Start Date</th>
@@ -83,6 +85,18 @@ export default function TableView({
               >
                 <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{book.title || '-'}</td>
                 <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{book.author || '-'}</td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  {book.genre ? (() => {
+                    const genreColors = getGenreColor(book.genre);
+                    return (
+                      <span className={`px-2 py-1 ${genreColors.bg} ${genreColors.text} rounded text-xs font-semibold border ${genreColors.border}`}>
+                        {book.genre}
+                      </span>
+                    );
+                  })() : (
+                    <span className="text-gray-400">-</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
                   <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs">
                     {book.bookshelfName || '-'}

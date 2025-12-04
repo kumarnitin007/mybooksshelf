@@ -472,7 +472,8 @@ export const addBookFact = async (bookId, factText) => {
       .from('bk_book_facts')
       .insert([{
         book_id: bookId,
-        fact_text: factText
+        content: factText,  // Primary column name in database
+        fact_text: factText  // Also set fact_text if it exists
       }])
       .select()
       .single();
@@ -488,7 +489,8 @@ export const addBookFacts = async (bookId, facts) => {
   try {
     const factsToInsert = facts.map(fact => ({
       book_id: bookId,
-      fact_text: fact
+      content: fact,  // Primary column name in database
+      fact_text: fact  // Also set fact_text if it exists
     }));
 
     const { data, error } = await supabase

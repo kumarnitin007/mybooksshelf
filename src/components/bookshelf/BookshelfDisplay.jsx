@@ -91,6 +91,7 @@ export default function BookshelfDisplay({
         {activeShelf?.type === 'regular' && ` (${activeShelf.books.length}/10)`}
         {activeShelf?.type === 'wishlist' && ` (unlimited)`}
         {activeShelf?.type === 'favorites' && ` (unlimited)`}
+        {activeShelf?.type === 'shared_with_me' && ` (unlimited)`}
       </div>
     </div>
   );

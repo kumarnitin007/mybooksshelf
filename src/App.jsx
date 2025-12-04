@@ -6,13 +6,14 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Book, Star, Calendar, User, Plus, X, Filter, Sparkles, ChevronDown, Target, Grid, List, Heart, Edit2, Check, Info, Table, Download, FileUp, Trash2 } from 'lucide-react';
+import { Search, Book, Star, Calendar, User, Plus, X, Filter, Sparkles, ChevronDown, Target, Grid, List, Heart, Edit2, Check, Info, Table, Download, FileUp, Trash2, Share2 } from 'lucide-react';
 import AboutBookshelfModal from './components/AboutBookshelfModal';
 import AvatarSelector from './components/AvatarSelector';
 import LevelUpModal from './components/modals/LevelUpModal';
 import AchievementModal from './components/modals/AchievementModal';
 import MoveBookModal from './components/modals/MoveBookModal';
 import RecommendationsModal from './components/modals/RecommendationsModal';
+import PublicRecommendationsModal from './components/modals/PublicRecommendationsModal';
 import UserComparisonModal from './components/modals/UserComparisonModal';
 import AddBookModal from './components/modals/AddBookModal';
 import BookDetailsModal from './components/modals/BookDetailsModal';
@@ -22,6 +23,7 @@ import Header from './components/layout/Header';
 import UserStatsSection from './components/layout/UserStatsSection';
 import BookshelfDisplay from './components/bookshelf/BookshelfDisplay';
 import { ANIMAL_THEMES } from './constants/animalThemes';
+import { getGenreColor } from './utils/genreColors';
 import { getPlaceholderImage } from './utils/imageHelpers';
 import { isAgeAppropriate } from './utils/contentFilter';
 import { BOOK_RECOMMENDATIONS } from './data/recommendations';
@@ -59,13 +61,17 @@ import {
   getBooksInBookshelf,
   transformBookFromDB,
   getUserBookCount,
-  getUserBooksThisMonth
+  getUserBooksThisMonth,
+  getSharedBooks,
+  getBooksSharedByUser,
+  getPublicRecommendations
 } from './services/bookService';
 import { 
   createBookshelf, 
   updateBookshelf, 
   deleteBookshelf, 
-  getUserBookshelves
+  getUserBookshelves,
+  ensureSharedWithMeBookshelf
 } from './services/bookshelfService';
 import {
   getUserXP
@@ -97,6 +103,7 @@ export default function App() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showRecommendations, setShowRecommendations] = useState(false);
+  const [showPublicRecommendations, setShowPublicRecommendations] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [selectedBook, setSelectedBook] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -108,6 +115,7 @@ export default function App() {
   const [newBook, setNewBook] = useState({
     title: '',
     author: '',
+    genre: '',
     coverUrl: '',
     description: '',
     favoriteCharacter: '',
@@ -288,6 +296,9 @@ export default function App() {
         return;
       }
 
+      // Ensure "Shared with Me" bookshelf exists
+      await ensureSharedWithMeBookshelf(currentUser.id);
+
       // Load books for each bookshelf
       const bookshelvesWithBooks = await Promise.all(
         (bookshelvesData || []).map(async (bookshelf) => {
@@ -312,6 +323,33 @@ export default function App() {
           };
         })
       );
+
+      // Load shared books and add to "Shared with Me" bookshelf
+      const { data: sharedBooksData } = await getSharedBooks(currentUser.id);
+      const sharedBookshelfIndex = bookshelvesWithBooks.findIndex(bs => bs.type === 'shared_with_me');
+      
+      if (sharedBooksData && sharedBooksData.length > 0) {
+        const transformedSharedBooks = sharedBooksData.map(transformBookFromDB);
+        
+        if (sharedBookshelfIndex >= 0) {
+          // Add shared books to existing "Shared with Me" bookshelf
+          bookshelvesWithBooks[sharedBookshelfIndex].books = transformedSharedBooks;
+        } else {
+          // Create "Shared with Me" bookshelf if it doesn't exist
+          const { data: sharedShelf } = await ensureSharedWithMeBookshelf(currentUser.id);
+          if (sharedShelf) {
+            bookshelvesWithBooks.push({
+              id: sharedShelf.id,
+              name: sharedShelf.name,
+              animal: sharedShelf.animal,
+              books: transformedSharedBooks,
+              displayMode: sharedShelf.display_mode,
+              type: sharedShelf.type,
+              sharedWith: []
+            });
+          }
+        }
+      }
 
       setBookshelves(bookshelvesWithBooks);
 
@@ -504,16 +542,6 @@ export default function App() {
     }
   };
 
-  const handleChangeUser = () => {
-    // Sign out and show login modal
-    authSignOut();
-    setCurrentUser(defaultUser);
-    setAuthUser(null);
-    setShowLoginModal(true);
-    setEmailSent(false);
-    setLoginEmail('');
-  };
-
   const logout = async () => {
     // Sign out from Supabase Auth (if authenticated)
     if (authUser) {
@@ -638,7 +666,98 @@ export default function App() {
     }
   };
 
-  const selectSearchResult = (result) => {
+  // Helper function to fetch genre for a book
+  const fetchBookGenre = async (title, author, isbn, openLibraryKey) => {
+    try {
+      // Try Google Books API first (usually more reliable for genres)
+      if (title) {
+        const query = author ? `intitle:${title}+inauthor:${author}` : `intitle:${title}`;
+        const googleUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=3`;
+        const googleResponse = await fetch(googleUrl);
+        const googleData = await googleResponse.json();
+
+        if (googleData.items && googleData.items.length > 0) {
+          const bestMatch = googleData.items.find(item => {
+            const itemTitle = (item.volumeInfo?.title || '').toLowerCase();
+            const searchTitle = title.toLowerCase();
+            return itemTitle === searchTitle || itemTitle.includes(searchTitle) || searchTitle.includes(itemTitle);
+          }) || googleData.items[0];
+
+          if (bestMatch.volumeInfo?.categories && bestMatch.volumeInfo.categories.length > 0) {
+            // Clean up the genre string
+            let genre = bestMatch.volumeInfo.categories[0];
+            genre = genre.replace(/^Fiction\s*-\s*/i, '').replace(/\s*Fiction$/i, '').trim();
+            if (genre) return genre;
+          }
+        }
+      }
+
+      // Fall back to Open Library if we have a work key or ISBN
+      if (openLibraryKey) {
+        const workKey = openLibraryKey.startsWith('/works/') ? openLibraryKey : `/works/${openLibraryKey}`;
+        const olUrl = `https://openlibrary.org${workKey}.json`;
+        const olResponse = await fetch(olUrl);
+        const olData = await olResponse.json();
+
+        if (olData.subjects && olData.subjects.length > 0) {
+          const subjects = Array.isArray(olData.subjects) ? olData.subjects : [olData.subjects];
+          const genreSubjects = subjects.filter(s => {
+            const sLower = String(s).toLowerCase();
+            return !sLower.includes('accessible book') &&
+                   !sLower.includes('protected daisy') &&
+                   !sLower.includes('in library') &&
+                   !sLower.includes('juvenile');
+          });
+          
+          if (genreSubjects.length > 0) {
+            let genre = genreSubjects[0];
+            genre = genre.replace(/^Fiction\s*-\s*/i, '').replace(/\s*Fiction$/i, '').trim();
+            if (genre) return genre;
+          }
+        }
+      }
+
+      // Try Open Library search API as last resort
+      if (title) {
+        const query = author ? `${title} ${author}` : title;
+        const searchUrl = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=3`;
+        const searchResponse = await fetch(searchUrl);
+        const searchData = await searchResponse.json();
+
+        if (searchData.docs && searchData.docs.length > 0) {
+          const bestMatch = searchData.docs.find(doc => {
+            const docTitle = (doc.title || '').toLowerCase();
+            const searchTitle = title.toLowerCase();
+            return docTitle === searchTitle || docTitle.includes(searchTitle) || searchTitle.includes(docTitle);
+          }) || searchData.docs[0];
+
+          if (bestMatch.subject) {
+            const subjects = Array.isArray(bestMatch.subject) ? bestMatch.subject : [bestMatch.subject];
+            const genreSubjects = subjects.filter(s => {
+              const sLower = String(s).toLowerCase();
+              return !sLower.includes('accessible book') &&
+                     !sLower.includes('protected daisy') &&
+                     !sLower.includes('in library');
+            });
+            
+            if (genreSubjects.length > 0) {
+              let genre = genreSubjects[0];
+              genre = genre.replace(/^Fiction\s*-\s*/i, '').replace(/\s*Fiction$/i, '').trim();
+              if (genre) return genre;
+            }
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error fetching book genre:', error);
+      return null;
+    }
+  };
+
+  const selectSearchResult = async (result) => {
+    // First, populate the basic fields immediately
     setNewBook({
       ...newBook,
       title: result.title,
@@ -648,6 +767,15 @@ export default function App() {
     });
     setSearchResults([]);
     setSearchQuery('');
+
+    // Then fetch and populate genre asynchronously
+    const genre = await fetchBookGenre(result.title, result.author, result.isbn, result.key);
+    if (genre) {
+      setNewBook(prev => ({
+        ...prev,
+        genre: genre
+      }));
+    }
   };
 
   const handleImageUpload = async (e, isEditing = false) => {
@@ -820,6 +948,7 @@ export default function App() {
           const bookData = {
             title: newBook.title,
             author: newBook.author || '',
+            genre: newBook.genre || '',
             coverUrl: newBook.coverUrl || getPlaceholderImage(newBook.title),
             description: newBook.description || '',
             favoriteCharacter: newBook.favoriteCharacter || '',
@@ -913,6 +1042,7 @@ export default function App() {
       setNewBook({
         title: '',
         author: '',
+        genre: '',
         coverUrl: '',
         description: '',
         favoriteCharacter: '',
@@ -1483,6 +1613,10 @@ export default function App() {
     return bookshelves.find(shelf => shelf.type === 'favorites');
   };
 
+  const getSharedWithMeBookshelf = () => {
+    return bookshelves.find(shelf => shelf.type === 'shared_with_me');
+  };
+
 
   // getCurrentUserBooksReadThisMonth - now using imported utility from utils/bookHelpers.js
   const getCurrentUserBooksReadThisMonth = () => {
@@ -1538,15 +1672,16 @@ export default function App() {
     
     let books = activeShelf.books;
     
-    // Apply search filter
+    // Apply search filter (includes genre)
     if (searchQuery) {
       books = books.filter(book => 
         book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        book.author.toLowerCase().includes(searchQuery.toLowerCase())
+        book.author?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        book.genre?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
     
-    // Apply rating/author filter
+    // Apply rating/author/genre/sharing filter
     if (filterBy === 'rating5') {
       books = books.filter(book => book.rating === 5);
     } else if (filterBy === 'rating4+') {
@@ -1554,6 +1689,13 @@ export default function App() {
     } else if (filterBy.startsWith('author:')) {
       const author = filterBy.replace('author:', '');
       books = books.filter(book => book.author === author);
+    } else if (filterBy.startsWith('genre:')) {
+      const genre = filterBy.replace('genre:', '');
+      books = books.filter(book => book.genre === genre);
+    } else if (filterBy === 'shared_with_me') {
+      books = books.filter(book => book.sharedBy && book.sharedBy !== currentUser?.id);
+    } else if (filterBy === 'shared_by_me') {
+      books = books.filter(book => book.sharedBy === currentUser?.id || (book.sharedWith && book.sharedWith.length > 0));
     }
     
     return books;
@@ -1840,6 +1982,7 @@ export default function App() {
       const bookData = {
         title: book.title || '',
         author: book.author || '',
+        genre: book.genre || '',
         rating: book.rating || 0,
         startDate: book.startDate || null,
         finishDate: book.finishDate || null,
@@ -2011,6 +2154,7 @@ export default function App() {
         onShowAbout={() => setShowAboutModal(true)}
         onShowProfile={() => setShowProfile(true)}
         onGenerateRecommendations={() => generateRecommendations()}
+        onShowPublicRecommendations={() => setShowPublicRecommendations(true)}
       />
 
       {/* User Stats Section */}
@@ -2078,6 +2222,18 @@ export default function App() {
               <span className="hidden sm:inline">Favorites ({getFavoritesBookshelf()?.books.length || 0})</span>
             </button>
             <button
+              onClick={() => {
+                const sharedWithMe = getSharedWithMeBookshelf();
+                if (sharedWithMe) {
+                  setActiveBookshelfIndex(bookshelves.findIndex(s => s.id === sharedWithMe.id));
+                }
+              }}
+              className="px-2 sm:px-4 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 flex items-center justify-center"
+            >
+              <Share2 className="w-4 h-4 sm:mr-1" />
+              <span className="hidden sm:inline">Shared with Me ({getSharedWithMeBookshelf()?.books.length || 0})</span>
+            </button>
+            <button
               onClick={() => setShowAddModal(true)}
               className="ml-auto px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg font-medium hover:from-indigo-700 hover:to-blue-700"
             >
@@ -2143,7 +2299,7 @@ export default function App() {
                     {bookshelves.map((shelf, index) => (
                       <option key={shelf.id} value={index}>
                         {shelf.name} {shelf.animal ? ANIMAL_THEMES[shelf.animal]?.emoji : ''} {
-                          shelf.type === 'wishlist'
+                          shelf.type === 'wishlist' || shelf.type === 'favorites' || shelf.type === 'shared_with_me'
                             ? `(${shelf.books.length})` 
                             : `(${shelf.books.length}/10)`
                         }
@@ -2170,7 +2326,7 @@ export default function App() {
               )}
               
               <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-                {activeShelf.type !== 'wishlist' && activeShelf.type !== 'favorites' && (
+                {activeShelf.type !== 'wishlist' && activeShelf.type !== 'favorites' && activeShelf.type !== 'shared_with_me' && (
                   <select
                     value={activeShelf.animal}
                     onChange={async (e) => {
@@ -2320,6 +2476,38 @@ export default function App() {
                   >
                     4+ Star Ratings
                   </button>
+                  <div className="border-t border-gray-100 my-2"></div>
+                  <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Sharing</div>
+                  <button
+                    onClick={() => { setFilterBy('shared_with_me'); setShowFilterDropdown(false); }}
+                    className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm flex items-center gap-2"
+                  >
+                    <Share2 className="w-4 h-4 text-blue-600" />
+                    Shared with Me
+                  </button>
+                  <button
+                    onClick={() => { setFilterBy('shared_by_me'); setShowFilterDropdown(false); }}
+                    className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm flex items-center gap-2"
+                  >
+                    <Share2 className="w-4 h-4 text-green-600" />
+                    Books I Shared
+                  </button>
+                  {uniqueGenres.length > 0 && (
+                    <>
+                      <div className="border-t border-gray-100 my-2"></div>
+                      <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">By Genre</div>
+                      {uniqueGenres.map(genre => (
+                        <button
+                          key={genre}
+                          onClick={() => { setFilterBy(`genre:${genre}`); setShowFilterDropdown(false); }}
+                          className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm flex items-center gap-2"
+                        >
+                          <span className={`w-2 h-2 rounded-full ${getGenreColor(genre).bg}`}></span>
+                          {genre}
+                        </button>
+                      ))}
+                    </>
+                  )}
                   {uniqueAuthors.length > 0 && (
                     <>
                       <div className="border-t border-gray-100 my-2"></div>
@@ -2406,6 +2594,33 @@ export default function App() {
         }}
       />
 
+      {/* Public Recommendations Modal */}
+      <PublicRecommendationsModal
+        show={showPublicRecommendations}
+        currentUser={currentUser}
+        onClose={() => setShowPublicRecommendations(false)}
+        onAddBook={async (book) => {
+          // Add book to user's default bookshelf
+          const defaultShelf = bookshelves.find(s => s.type === 'regular') || bookshelves[0];
+          if (defaultShelf && currentUser) {
+            const bookData = {
+              title: book.title,
+              author: book.author || '',
+              genre: book.genre || '',
+              coverUrl: book.coverUrl || getPlaceholderImage(book.title),
+              description: book.description || '',
+              rating: book.rating || 0
+            };
+            const result = await createBook(defaultShelf.id, bookData);
+            if (!result.error) {
+              await loadData();
+              setShowPublicRecommendations(false);
+              alert('Book added to your library!');
+            }
+          }
+        }}
+      />
+
       {/* Recommendations Modal */}
       <RecommendationsModal
         show={showRecommendations}
@@ -2444,7 +2659,6 @@ export default function App() {
           setProfileSuccess('');
           setShowAvatarSelector(false);
         }}
-        onChangeUser={handleChangeUser}
         onLogout={logout}
         onSave={async () => {
           setProfileLoading(true);

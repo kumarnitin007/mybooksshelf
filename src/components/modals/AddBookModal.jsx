@@ -104,6 +104,17 @@ export default function AddBookModal({
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Genre</label>
+            <input
+              type="text"
+              value={newBook.genre || ''}
+              onChange={(e) => setNewBook({ ...newBook, genre: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="e.g., Fiction, Mystery, Science Fiction, Romance"
+            />
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Book Cover Image</label>
             <div className="space-y-3">
               {/* Image Preview */}

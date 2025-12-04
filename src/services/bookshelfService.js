@@ -176,6 +176,40 @@ export const updateSharedBookshelfPermissions = async (bookshelfId, userIds) => 
 };
 
 /**
+ * Ensure "Shared with Me" bookshelf exists for a user
+ * @param {string} userId - The user ID
+ * @returns {Promise<{data: object|null, error: object|null}>}
+ */
+export const ensureSharedWithMeBookshelf = async (userId) => {
+  try {
+    // Check if "Shared with Me" bookshelf already exists
+    const { data: existing } = await supabase
+      .from('bk_bookshelves')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('type', 'shared_with_me')
+      .single();
+
+    if (existing) {
+      return { data: existing, error: null };
+    }
+
+    // Create "Shared with Me" bookshelf
+    const { data, error } = await createBookshelf(userId, {
+      name: 'Shared with Me',
+      animal: 'heart',
+      displayMode: 'covers',
+      type: 'shared_with_me'
+    });
+
+    return { data, error };
+  } catch (error) {
+    console.error('Error ensuring Shared with Me bookshelf:', error);
+    return { data: null, error };
+  }
+};
+
+/**
  * Ensure default bookshelves exist for a user
  * This is a fallback function - default bookshelves should be created by:
  * 1. Running the prepopulate_default_bookshelves.sql script for existing users

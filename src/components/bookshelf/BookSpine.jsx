@@ -112,9 +112,20 @@ export default function BookSpine({ book, index, onClick }) {
       </div>
       
       {/* Tooltip on hover */}
-      <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap z-20 shadow-xl pointer-events-none">
+      <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 z-20 shadow-xl pointer-events-none min-w-[150px]">
         <div className="font-semibold">{book.title}</div>
         {book.author && <div className="text-gray-300 text-[10px] mt-1">{book.author}</div>}
+        {book.genre && (() => {
+          const { getGenreColor } = require('../../utils/genreColors');
+          const genreColors = getGenreColor(book.genre);
+          return (
+            <div className="mt-1.5">
+              <span className={`px-1.5 py-0.5 ${genreColors.bg} ${genreColors.text} rounded text-[10px] font-semibold border ${genreColors.border}`}>
+                {book.genre}
+              </span>
+            </div>
+          );
+        })()}
         <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
       </div>
     </button>

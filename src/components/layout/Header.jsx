@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Info, Sparkles } from 'lucide-react';
+import { User, Info, Sparkles, Globe } from 'lucide-react';
 import { ANIMAL_THEMES } from '../../constants/animalThemes';
 
 /**
@@ -13,6 +13,7 @@ import { ANIMAL_THEMES } from '../../constants/animalThemes';
  * @param {function} onShowAbout - Callback to show about modal
  * @param {function} onShowProfile - Callback to show profile modal
  * @param {function} onGenerateRecommendations - Callback to generate recommendations
+ * @param {function} onShowPublicRecommendations - Callback to show public recommendations modal
  */
 export default function Header({
   currentUser,
@@ -21,7 +22,8 @@ export default function Header({
   onShowUserComparison,
   onShowAbout,
   onShowProfile,
-  onGenerateRecommendations
+  onGenerateRecommendations,
+  onShowPublicRecommendations
 }) {
   const theme = activeShelf ? ANIMAL_THEMES[activeShelf.animal] || ANIMAL_THEMES.cat : ANIMAL_THEMES.cat;
 
@@ -72,6 +74,14 @@ export default function Header({
             >
               <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
               <span className="hidden sm:inline">Recommendations</span>
+            </button>
+            <button
+              onClick={onShowPublicRecommendations}
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg sm:rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all shadow-md text-xs sm:text-base"
+              title="Public Recommendations"
+            >
+              <Globe className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Public Feed</span>
             </button>
           </div>
         </div>
