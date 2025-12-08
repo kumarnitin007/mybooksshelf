@@ -28,14 +28,15 @@ export default async function handler(req, res) {
     }
 
     // Get API key from environment variables
-    // Vercel automatically provides process.env variables
-    const apiKey = process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    // Use OPENAI_API_KEY (without VITE_ prefix) to keep it server-side only
+    // VITE_ prefixed variables are exposed to the browser, which is a security risk!
+    const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey || !apiKey.trim()) {
       console.error('OpenAI API key not found in environment variables');
       return res.status(500).json({ 
         error: 'OpenAI API key not configured',
-        details: 'Please set VITE_OPENAI_API_KEY or OPENAI_API_KEY in Vercel environment variables.'
+        details: 'Please set OPENAI_API_KEY in Vercel environment variables (Settings → Environment Variables).'
       });
     }
 

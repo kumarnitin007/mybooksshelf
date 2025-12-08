@@ -85,8 +85,9 @@ export const generateAIRecommendations = async (userBooks, userProfile, userId =
     const { prompt, tokenEstimate, costEstimate } = promptData;
     
     // Call AI service (OpenAI, Anthropic, or local model)
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    const apiKeyExists = !!apiKey && apiKey.trim();
+    // Note: API key is stored server-side only (in Vercel env vars as OPENAI_API_KEY)
+    // Frontend doesn't need the key - it just calls the serverless function
+    const apiKeyExists = true; // Assume API is available if serverless function exists
     let recommendations = await callAIRecommendationAPI(prompt, userBooks, apiKeyExists, { tokenEstimate, costEstimate });
     
     // Determine if API was actually used (check if recommendations have isAI flag)
@@ -395,14 +396,9 @@ const buildRecommendationPrompt = (analysis, userProfile) => {
  * @returns {Promise<array>} Array of recommendations
  */
 const callAIRecommendationAPI = async (prompt, userBooks = [], apiKeyExists = false, estimates = null) => {
-  // Check if OpenAI API key is configured
-  const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-  
-  if (!apiKey) {
-    // Fallback to rule-based recommendations if no API key
-    console.warn('OpenAI API key not found. Using fallback recommendations.');
-    return generateFallbackRecommendations(prompt, userBooks);
-  }
+  // Note: API key is stored server-side only (in Vercel env vars as OPENAI_API_KEY)
+  // Frontend doesn't have access to the key for security reasons
+  // The serverless function (/api/openai.js) handles the API key
 
   try {
     // Priority order: 1) Vercel API route (production), 2) Local proxy server (development), 3) Supabase Edge Function, 4) Direct call (will fail CORS)

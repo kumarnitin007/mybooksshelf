@@ -855,7 +855,7 @@ export default function AIRecommendationsModal({
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md mx-auto text-left">
                 <p className="text-sm font-semibold text-yellow-900 mb-2">💡 Tip:</p>
                 <p className="text-xs text-yellow-800">
-                  To use AI recommendations, add your OpenAI API key to <code className="bg-yellow-100 px-1 rounded">.env</code> as <code className="bg-yellow-100 px-1 rounded">VITE_OPENAI_API_KEY</code>
+                  For local development: Add your OpenAI API key to <code className="bg-yellow-100 px-1 rounded">.env</code> as <code className="bg-yellow-100 px-1 rounded">VITE_OPENAI_API_KEY</code>. For production: Add <code className="bg-yellow-100 px-1 rounded">OPENAI_API_KEY</code> in Vercel environment variables.
                 </p>
                 <p className="text-xs text-yellow-800 mt-2">
                   The system will use fallback recommendations if no API key is configured.
