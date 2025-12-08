@@ -76,7 +76,7 @@ export default function PublicRecommendationsModal({
             <Globe className="w-6 h-6 text-blue-600" />
             <h2 className="text-2xl font-bold text-gray-900">Public Recommendations</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600" title="Close modal">
             <X className="w-6 h-6" />
           </button>
         </div>

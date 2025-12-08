@@ -25,7 +25,7 @@ export default function MoveBookModal({ show, bookToMove, bookshelves, onClose, 
             <BookOpen className="w-6 h-6 text-indigo-600" />
             <h2 className="text-2xl font-bold text-gray-900">Move Book</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600" title="Close modal">
             <X className="w-6 h-6" />
           </button>
         </div>

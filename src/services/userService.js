@@ -151,11 +151,21 @@ export const getAllUsers = async () => {
  */
 export const getUserProfile = async (userId) => {
   try {
+    if (!userId) {
+      return { data: null, error: { message: 'User ID is required' } };
+    }
+
     const { data, error } = await supabase
       .from('bk_user_profiles')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle(); // Use maybeSingle() instead of single() to handle missing records gracefully
+
+    // If no profile exists, that's okay - return null data without error
+    if (error && error.code === 'PGRST116') {
+      // PGRST116 is the code for "no rows returned" - this is expected for new users
+      return { data: null, error: null };
+    }
 
     return { data, error };
   } catch (error) {

@@ -16,18 +16,18 @@ import { supabase } from '../config/supabase';
 // XP and Levels
 export const getUserXP = async (userId) => {
   try {
+    if (!userId) {
+      return { data: null, error: { message: 'User ID is required' } };
+    }
+
     const { data, error } = await supabase
       .from('bk_user_xp')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle(); // Use maybeSingle() to handle missing records gracefully
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 = not found
-      throw error;
-    }
-
-    // If no XP record exists, create one
-    if (!data) {
+    // If no XP record exists, try to create one
+    if (!data && (!error || error.code === 'PGRST116')) {
       const { data: newData, error: createError } = await supabase
         .from('bk_user_xp')
         .insert([{
@@ -37,16 +37,47 @@ export const getUserXP = async (userId) => {
           xp_to_next_level: 100
         }])
         .select()
-        .single();
+        .maybeSingle();
 
-      if (createError) throw createError;
+      // If RLS policy blocks insert, return default values instead of error
+      if (createError) {
+        // Check if it's an RLS policy error (42501)
+        if (createError.code === '42501') {
+          console.warn('RLS policy blocks XP creation. Please run fix_user_xp_rls.sql');
+          // Return default XP data instead of failing
+          return { 
+            data: {
+              user_id: userId,
+              total_xp: 0,
+              current_level: 1,
+              xp_to_next_level: 100
+            }, 
+            error: null 
+          };
+        }
+        throw createError;
+      }
       return { data: newData, error: null };
+    }
+
+    // If there was an error other than "not found", throw it
+    if (error && error.code !== 'PGRST116') {
+      throw error;
     }
 
     return { data, error: null };
   } catch (error) {
     console.error('Error getting user XP:', error);
-    return { data: null, error };
+    // Return default values on error to prevent app crashes
+    return { 
+      data: {
+        user_id: userId,
+        total_xp: 0,
+        current_level: 1,
+        xp_to_next_level: 100
+      }, 
+      error 
+    };
   }
 };
 
@@ -106,17 +137,18 @@ export const addXP = async (userId, xpAmount, reason = '') => {
 // Reading Streaks
 export const getUserStreak = async (userId) => {
   try {
+    if (!userId) {
+      return { data: null, error: { message: 'User ID is required' } };
+    }
+
     const { data, error } = await supabase
       .from('bk_reading_streaks')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle(); // Use maybeSingle() to handle missing records gracefully
 
-    if (error && error.code !== 'PGRST116') {
-      throw error;
-    }
-
-    if (!data) {
+    // If no streak exists, try to create one
+    if (!data && (!error || error.code === 'PGRST116')) {
       const { data: newData, error: createError } = await supabase
         .from('bk_reading_streaks')
         .insert([{
@@ -126,16 +158,47 @@ export const getUserStreak = async (userId) => {
           last_reading_date: null
         }])
         .select()
-        .single();
+        .maybeSingle();
 
-      if (createError) throw createError;
+      // If RLS policy blocks insert, return default values instead of error
+      if (createError) {
+        // Check if it's an RLS policy error (42501)
+        if (createError.code === '42501') {
+          console.warn('RLS policy blocks streak creation. Please run fix_reading_streaks_rls.sql');
+          // Return default streak data instead of failing
+          return { 
+            data: {
+              user_id: userId,
+              current_streak: 0,
+              longest_streak: 0,
+              last_reading_date: null
+            }, 
+            error: null 
+          };
+        }
+        throw createError;
+      }
       return { data: newData, error: null };
+    }
+
+    // If there was an error other than "not found", throw it
+    if (error && error.code !== 'PGRST116') {
+      throw error;
     }
 
     return { data, error: null };
   } catch (error) {
     console.error('Error getting user streak:', error);
-    return { data: null, error };
+    // Return default values on error to prevent app crashes
+    return { 
+      data: {
+        user_id: userId,
+        current_streak: 0,
+        longest_streak: 0,
+        last_reading_date: null
+      }, 
+      error 
+    };
   }
 };
 

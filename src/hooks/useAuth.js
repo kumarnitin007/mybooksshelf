@@ -88,7 +88,10 @@ export function useAuth() {
   // Listen to auth state changes
   useEffect(() => {
     const { data: { subscription } } = onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user?.email);
+      // Only log meaningful auth events (skip INITIAL_SESSION when there's no session)
+      if (event !== 'INITIAL_SESSION' || session) {
+        console.log('Auth state changed:', event, session?.user?.email || 'no session');
+      }
       
       if (event === 'SIGNED_IN' && session?.user) {
         const verified = isEmailVerified(session.user);

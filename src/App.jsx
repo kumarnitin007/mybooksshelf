@@ -12,8 +12,8 @@ import AvatarSelector from './components/AvatarSelector';
 import LevelUpModal from './components/modals/LevelUpModal';
 import AchievementModal from './components/modals/AchievementModal';
 import MoveBookModal from './components/modals/MoveBookModal';
-import RecommendationsModal from './components/modals/RecommendationsModal';
 import PublicRecommendationsModal from './components/modals/PublicRecommendationsModal';
+import AIRecommendationsModal from './components/modals/AIRecommendationsModal';
 import UserComparisonModal from './components/modals/UserComparisonModal';
 import AddBookModal from './components/modals/AddBookModal';
 import BookDetailsModal from './components/modals/BookDetailsModal';
@@ -26,7 +26,6 @@ import { ANIMAL_THEMES } from './constants/animalThemes';
 import { getGenreColor } from './utils/genreColors';
 import { getPlaceholderImage } from './utils/imageHelpers';
 import { isAgeAppropriate } from './utils/contentFilter';
-import { BOOK_RECOMMENDATIONS } from './data/recommendations';
 import { getBooksReadThisMonth as getBooksThisMonth, calculateAverageBooksPerMonth, findMostReadAuthor } from './utils/bookHelpers';
 import { useAuth } from './hooks/useAuth';
 import { useGamification } from './hooks/useGamification';
@@ -36,8 +35,6 @@ import { useUserData } from './hooks/useUserData';
 // Import Supabase services
 import { 
   createUser, 
-  getUserByUsername, 
-  getUserById,
   getAllUsers, 
   getUserProfile, 
   updateUserProfile 
@@ -46,9 +43,7 @@ import {
   signInWithEmail,
   signInWithPassword,
   signUpWithPassword,
-  getCurrentSession,
   signOut as authSignOut,
-  isEmailVerified,
   onAuthStateChange,
   getOrCreateAppUser
 } from './services/authService';
@@ -62,9 +57,7 @@ import {
   transformBookFromDB,
   getUserBookCount,
   getUserBooksThisMonth,
-  getSharedBooks,
-  getBooksSharedByUser,
-  getPublicRecommendations
+  getSharedBooks
 } from './services/bookService';
 import { 
   createBookshelf, 
@@ -102,7 +95,7 @@ export default function App() {
   } = auth;
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showRecommendations, setShowRecommendations] = useState(false);
+  const [showAIRecommendations, setShowAIRecommendations] = useState(false);
   const [showPublicRecommendations, setShowPublicRecommendations] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [selectedBook, setSelectedBook] = useState(null);
@@ -128,8 +121,6 @@ export default function App() {
     leastFavoritePart: ''
   });
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
-  const [recommendations, setRecommendations] = useState([]);
-  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
   const [showAvatarSelector, setShowAvatarSelector] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState('');
@@ -139,7 +130,6 @@ export default function App() {
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [bookToMove, setBookToMove] = useState(null);
   const [showAboutModal, setShowAboutModal] = useState(false);
-  const [allRecommendationsPool, setAllRecommendationsPool] = useState([]);
   const [failedImages, setFailedImages] = useState(new Set()); // Track books with failed images after retries
   const imageRetryCountsRef = useRef({}); // Use ref to avoid re-renders during retries
   const failedImagesRef = useRef(new Set()); // Use ref to avoid re-renders during retries
@@ -601,8 +591,6 @@ export default function App() {
     return userStats[userId]?.totalBooks || 0;
   };
 
-
-  // isAgeAppropriate function - now imported from utils/contentFilter.js
 
   const searchBooks = async (query) => {
     if (!query.trim()) {
@@ -1415,88 +1403,14 @@ export default function App() {
         // Update local state
         setIgnoredSuggestions([...ignoredSuggestions, suggestionKey]);
         
-        // Remove from recommendations display
-        setRecommendations(recommendations.filter(r => 
-          !(r.title === bookTitle && r.author === bookAuthor)
-        ));
       } catch (error) {
         console.error('Error ignoring suggestion:', error);
         // Still update local state
         setIgnoredSuggestions([...ignoredSuggestions, suggestionKey]);
-        setRecommendations(recommendations.filter(r => 
-          !(r.title === bookTitle && r.author === bookAuthor)
-        ));
       }
     }
   };
 
-  const generateRecommendations = async (append = false) => {
-    // Always open the modal first
-    if (!append) {
-      setShowRecommendations(true);
-      setIsLoadingRecommendations(true);
-    }
-
-    const allBooks = bookshelves.flatMap(shelf => shelf.books);
-    const ratedBooks = allBooks.filter(b => b.rating >= 3); // Exclude 1-2 star books
-
-    try {
-      const authors = [...new Set(ratedBooks.map(b => b.author).filter(Boolean))];
-      const topRated = ratedBooks.filter(b => b.rating >= 4);
-      
-      // Generate a larger pool of recommendations - all age-appropriate for teens
-      const allRecs = [];
-      
-      // Always generate recommendations, even if there are no rated books
-      // Use the expanded recommendation pool from data file
-      const recommendationPool = BOOK_RECOMMENDATIONS.map(book => ({
-        ...book,
-        reason: topRated.length > 0 && Math.random() > 0.7 
-          ? `Based on your love for ${topRated[0].title}, you might enjoy ${book.title}. ${book.reason}`
-          : book.reason
-      }));
-      
-      // Filter to ensure all recommendations are age-appropriate
-      const ageAppropriateRecs = recommendationPool.filter(rec => 
-        isAgeAppropriate(rec.title, rec.author)
-      );
-      
-      allRecs.push(...ageAppropriateRecs);
-
-      // Filter out ignored suggestions, books already in library, and ensure age-appropriateness
-      const filteredRecs = allRecs.filter(rec => {
-        const key = `${rec.title}|${rec.author}`;
-        const isIgnored = ignoredSuggestions.includes(key);
-        const alreadyInLibrary = bookshelves.some(shelf => 
-          shelf.books.some(book => book.title === rec.title && book.author === rec.author)
-        );
-        const isAppropriate = isAgeAppropriate(rec.title, rec.author);
-        return !isIgnored && !alreadyInLibrary && isAppropriate;
-      });
-
-      if (append) {
-        // Get 5 more recommendations that aren't already shown
-        const currentRecTitles = recommendations.map(r => `${r.title}|${r.author}`);
-        const newRecs = filteredRecs.filter(rec => {
-          const key = `${rec.title}|${rec.author}`;
-          return !currentRecTitles.includes(key);
-        }).slice(0, 5);
-        
-        setRecommendations([...recommendations, ...newRecs]);
-      } else {
-        // First time - show first 5 and store the pool
-        setRecommendations(filteredRecs.slice(0, 5));
-        setAllRecommendationsPool(filteredRecs);
-      }
-    } catch (error) {
-      console.error('Error generating recommendations:', error);
-      if (!append) {
-        setRecommendations([]);
-      }
-    } finally {
-      setIsLoadingRecommendations(false);
-    }
-  };
 
   const addRecommendationToWishlist = async (rec) => {
     const wishlistShelf = getWishlistBookshelf();
@@ -1574,11 +1488,6 @@ export default function App() {
 
     setBookshelves(updatedBookshelves);
     saveActiveIndex(); // Save active index
-    
-    // Remove from recommendations display
-    setRecommendations(recommendations.filter(r => 
-      !(r.title === rec.title && r.author === rec.author)
-    ));
     
     alert(`${rec.title} has been added to your wishlist!`);
   };
@@ -2130,8 +2039,9 @@ export default function App() {
       <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-red-50 flex items-center justify-center">
         <div className="text-center">
           <div className="text-6xl mb-4">📚</div>
-          <p className="text-gray-600">Loading...</p>
-          <p className="text-sm text-gray-500 mt-2">If this takes too long, check the browser console for errors</p>
+          <div className="animate-pulse text-4xl mb-4">📚</div>
+          <p className="text-gray-700 font-medium">Getting your bookshelf ready...</p>
+          <p className="text-sm text-gray-500 mt-2">Hang tight! We're loading all your awesome books! ✨</p>
         </div>
       </div>
     );
@@ -2142,6 +2052,7 @@ export default function App() {
       {/* Header */}
       <Header
         currentUser={currentUser}
+        userProfile={userProfile}
         totalBooks={bookshelves.flatMap(shelf => shelf.books || []).length}
         activeShelf={getActiveBookshelf()}
         onShowUserComparison={async () => {
@@ -2153,8 +2064,10 @@ export default function App() {
         }}
         onShowAbout={() => setShowAboutModal(true)}
         onShowProfile={() => setShowProfile(true)}
-        onGenerateRecommendations={() => generateRecommendations()}
         onShowPublicRecommendations={() => setShowPublicRecommendations(true)}
+        onShowAIRecommendations={() => {
+          setShowAIRecommendations(true);
+        }}
       />
 
       {/* User Stats Section */}
@@ -2182,6 +2095,7 @@ export default function App() {
                 }
               }}
               className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium"
+              title="View all your books"
             >
               Books ({getTotalBooksCount()})
             </button>
@@ -2193,6 +2107,7 @@ export default function App() {
                 }
               }}
               className="px-2 sm:px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 flex items-center justify-center"
+              title="View completed books"
             >
               <Check className="w-4 h-4 sm:mr-1" />
               <span className="hidden sm:inline">Completed ({getCompletedBookshelves().length})</span>
@@ -2205,6 +2120,7 @@ export default function App() {
                 }
               }}
               className="px-2 sm:px-4 py-2 bg-pink-600 text-white rounded-lg font-medium hover:bg-pink-700 flex items-center justify-center"
+              title="View your wishlist books"
             >
               <Heart className="w-4 h-4 sm:mr-1" />
               <span className="hidden sm:inline">Wishlist ({getWishlistBookshelf()?.books.length || 0})</span>
@@ -2217,6 +2133,7 @@ export default function App() {
                 }
               }}
               className="px-2 sm:px-4 py-2 bg-yellow-500 text-white rounded-lg font-medium hover:bg-yellow-600 flex items-center justify-center"
+              title="View your favorite books"
             >
               <Star className="w-4 h-4 sm:mr-1 fill-current" />
               <span className="hidden sm:inline">Favorites ({getFavoritesBookshelf()?.books.length || 0})</span>
@@ -2229,6 +2146,7 @@ export default function App() {
                 }
               }}
               className="px-2 sm:px-4 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 flex items-center justify-center"
+              title="View books shared with you"
             >
               <Share2 className="w-4 h-4 sm:mr-1" />
               <span className="hidden sm:inline">Shared with Me ({getSharedWithMeBookshelf()?.books.length || 0})</span>
@@ -2236,6 +2154,7 @@ export default function App() {
             <button
               onClick={() => setShowAddModal(true)}
               className="ml-auto px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg font-medium hover:from-indigo-700 hover:to-blue-700"
+              title="Add a new book to your library"
             >
               <Plus className="w-4 h-4 inline mr-1" />
               Add Book
@@ -2243,6 +2162,7 @@ export default function App() {
             <button
               onClick={createNewBookshelf}
               className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700"
+              title="Create a new bookshelf"
             >
               <Plus className="w-4 h-4 inline mr-1" />
               New Bookshelf
@@ -2271,14 +2191,14 @@ export default function App() {
                   <button
                     onClick={saveBookshelfName}
                     className="px-2 sm:px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                    title="Save name"
+                    title="Save bookshelf name"
                   >
                     <Check className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                   <button
                     onClick={cancelEditingBookshelfName}
                     className="px-2 sm:px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                    title="Cancel"
+                    title="Cancel editing"
                   >
                     <X className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
@@ -2317,7 +2237,7 @@ export default function App() {
                     <button
                       onClick={() => handleDeleteBookshelf(activeShelf.id)}
                       className="px-2 sm:px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex-shrink-0"
-                      title="Delete bookshelf"
+                      title="Delete this bookshelf"
                     >
                       <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
@@ -2450,6 +2370,7 @@ export default function App() {
               <button
                 onClick={() => setShowFilterDropdown(!showFilterDropdown)}
                 className="flex items-center gap-2 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                title="Filter books by rating, genre, author, or sharing status"
               >
                 <Filter className="w-5 h-5 text-gray-600" />
                 <span className="text-gray-700">Filter</span>
@@ -2461,18 +2382,21 @@ export default function App() {
                   <button
                     onClick={() => { setFilterBy('all'); setShowFilterDropdown(false); }}
                     className="w-full text-left px-4 py-2 hover:bg-gray-50"
+                    title="Show all books"
                   >
                     All Books
                   </button>
                   <button
                     onClick={() => { setFilterBy('rating5'); setShowFilterDropdown(false); }}
                     className="w-full text-left px-4 py-2 hover:bg-gray-50"
+                    title="Show only 5-star rated books"
                   >
                     5 Star Ratings
                   </button>
                   <button
                     onClick={() => { setFilterBy('rating4+'); setShowFilterDropdown(false); }}
                     className="w-full text-left px-4 py-2 hover:bg-gray-50"
+                    title="Show books rated 4 stars or higher"
                   >
                     4+ Star Ratings
                   </button>
@@ -2481,6 +2405,7 @@ export default function App() {
                   <button
                     onClick={() => { setFilterBy('shared_with_me'); setShowFilterDropdown(false); }}
                     className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm flex items-center gap-2"
+                    title="Show books shared with you by other users"
                   >
                     <Share2 className="w-4 h-4 text-blue-600" />
                     Shared with Me
@@ -2488,6 +2413,7 @@ export default function App() {
                   <button
                     onClick={() => { setFilterBy('shared_by_me'); setShowFilterDropdown(false); }}
                     className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm flex items-center gap-2"
+                    title="Show books you have shared with others"
                   >
                     <Share2 className="w-4 h-4 text-green-600" />
                     Books I Shared
@@ -2621,16 +2547,19 @@ export default function App() {
         }}
       />
 
-      {/* Recommendations Modal */}
-      <RecommendationsModal
-        show={showRecommendations}
-        recommendations={recommendations}
-        isLoadingRecommendations={isLoadingRecommendations}
-        onClose={() => setShowRecommendations(false)}
+      {/* AI Recommendations Modal */}
+      <AIRecommendationsModal
+        show={showAIRecommendations}
+        userBooks={bookshelves.flatMap(shelf => shelf.books || [])}
+        bookshelves={bookshelves}
+        userProfile={{ ...userProfile, id: currentUser?.id }}
+        currentUser={currentUser}
+        onClose={() => setShowAIRecommendations(false)}
         onAddToWishlist={addRecommendationToWishlist}
         onIgnore={ignoreSuggestion}
-        onGetMore={() => generateRecommendations(true)}
+        ignoredSuggestions={ignoredSuggestions}
       />
+
 
       {/* Profile Modal */}
       <ProfileModal

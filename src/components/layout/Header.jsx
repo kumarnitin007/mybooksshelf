@@ -12,18 +12,19 @@ import { ANIMAL_THEMES } from '../../constants/animalThemes';
  * @param {function} onShowUserComparison - Callback to show user comparison modal
  * @param {function} onShowAbout - Callback to show about modal
  * @param {function} onShowProfile - Callback to show profile modal
- * @param {function} onGenerateRecommendations - Callback to generate recommendations
  * @param {function} onShowPublicRecommendations - Callback to show public recommendations modal
+ * @param {function} onShowAIRecommendations - Callback to show AI recommendations modal
  */
 export default function Header({
   currentUser,
+  userProfile,
   totalBooks,
   activeShelf,
   onShowUserComparison,
   onShowAbout,
   onShowProfile,
-  onGenerateRecommendations,
-  onShowPublicRecommendations
+  onShowPublicRecommendations,
+  onShowAIRecommendations
 }) {
   const theme = activeShelf ? ANIMAL_THEMES[activeShelf.animal] || ANIMAL_THEMES.cat : ANIMAL_THEMES.cat;
 
@@ -35,6 +36,11 @@ export default function Header({
             <div className={`bg-gradient-to-br ${theme.colors.primary} p-2 sm:p-3 rounded-xl flex items-center justify-center`}>
               <span className="text-2xl sm:text-4xl">📚</span>
             </div>
+            {currentUser && userProfile?.avatar && (
+              <div className="text-2xl sm:text-3xl hidden sm:block" title={currentUser.username}>
+                {userProfile.avatar}
+              </div>
+            )}
             <div>
               <h1 className="text-xl sm:text-3xl font-bold text-gray-900">My Bookshelf</h1>
               <p className="text-xs sm:text-base text-gray-600">{totalBooks} books</p>
@@ -68,20 +74,29 @@ export default function Header({
               <span className="hidden sm:inline">Profile</span>
             </button>
             <button
-              onClick={onGenerateRecommendations}
-              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg sm:rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all shadow-md text-xs sm:text-base"
-              title="Recommendations"
-            >
-              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span className="hidden sm:inline">Recommendations</span>
-            </button>
-            <button
               onClick={onShowPublicRecommendations}
               className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg sm:rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all shadow-md text-xs sm:text-base"
               title="Public Recommendations"
             >
               <Globe className="w-4 h-4 sm:w-5 sm:h-5" />
               <span className="hidden sm:inline">Public Feed</span>
+            </button>
+            <button
+              onClick={onShowAIRecommendations}
+              disabled={currentUser?.username === 'Default User'}
+              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg sm:rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md text-xs sm:text-base ${
+                currentUser?.username === 'Default User' 
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : ''
+              }`}
+              title={
+                currentUser?.username === 'Default User' 
+                  ? 'Please login to use this paid feature' 
+                  : 'AI-Powered Recommendations'
+              }
+            >
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">AI Recommendations</span>
             </button>
           </div>
         </div>

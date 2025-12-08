@@ -181,7 +181,7 @@ export default function BookDetailsModal({
               <h2 className="text-2xl font-bold text-white drop-shadow-lg">{localBook?.title || selectedBook.title}</h2>
             </div>
           </div>
-          <button onClick={onClose} className="text-white/80 hover:text-white transition-colors">
+          <button onClick={onClose} className="text-white/80 hover:text-white transition-colors" title="Close modal">
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -294,10 +294,13 @@ export default function BookDetailsModal({
           </div>
 
           <div className="mb-4">
-            <h3 className={`font-semibold ${theme.colors.accent} mb-2 flex items-center gap-2`}>
+            <label className={`block font-semibold ${theme.colors.accent} mb-2 flex items-center gap-2`}>
               <Heart className={`w-5 h-5 ${theme.colors.accent}`} />
-              Favorite Character
-            </h3>
+              Favorite Character ✨ (Helps AI find your perfect reads!)
+            </label>
+            <p className="text-xs text-gray-500 mb-2">
+              🎯 Tell us about characters that made an impact! Our AI uses this to understand what types of characters and stories resonate with you, helping suggest books with similar compelling characters.
+            </p>
             <textarea
               value={localBook?.favoriteCharacter || selectedBook.favoriteCharacter || ''}
               onChange={(e) => handleUpdate({ favoriteCharacter: e.target.value })}
@@ -327,7 +330,12 @@ export default function BookDetailsModal({
           </div>
 
           <div className="mb-4">
-            <h3 className={`font-semibold ${theme.colors.accent} mb-2`}>Review</h3>
+            <label className={`block font-semibold ${theme.colors.accent} mb-2`}>
+              Review ✨ (Helps AI find your perfect reads!)
+            </label>
+            <p className="text-xs text-gray-500 mb-2">
+              🎯 Share your thoughts about what you loved (or didn't) about this book! Our AI analyzes your reviews to understand your reading preferences and suggest books that match your taste and interests.
+            </p>
             <textarea
               value={localBook?.review || selectedBook.review || ''}
               onChange={(e) => handleUpdate({ review: e.target.value })}
@@ -350,13 +358,13 @@ export default function BookDetailsModal({
 
           {/* Book Facts Section */}
           {bookFacts.length > 0 && (
-            <div className={`mb-6 mt-6 p-4 bg-gradient-to-r ${theme.colors.secondary} rounded-lg border-2 ${theme.colors.accent} border-opacity-30`}>
-              <h3 className={`font-semibold ${theme.colors.accent} mb-3 flex items-center gap-2`}>
-                <Sparkles className={`w-5 h-5 ${theme.colors.accent}`} />
+            <div className="mb-6 mt-6 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
+              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-purple-600" />
                 Fun Book Facts!
               </h3>
               {isLoadingFacts ? (
-                <p className="text-sm text-gray-600">Loading facts...</p>
+                <p className="text-sm text-gray-600">✨ Loading fun facts about this book...</p>
               ) : (
                 <ul className="space-y-2">
                   {bookFacts.map((fact, index) => (
@@ -488,11 +496,12 @@ export default function BookDetailsModal({
               title={hasUnsavedChanges ? 'Click to save your changes to the database' : 'All changes have been saved'}
             >
               <Save className="w-5 h-5" />
-              {hasUnsavedChanges ? 'Save Changes' : 'All Changes Saved ✓'}
+              {hasUnsavedChanges ? 'Save Changes' : 'Saved'}
             </button>
             <button
               onClick={() => setShowShareModal(true)}
               className="flex-1 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-lg flex items-center justify-center gap-2"
+              title="Share this book with other users or make it public"
             >
               <Share2 className="w-5 h-5" />
               Share Book
@@ -500,14 +509,16 @@ export default function BookDetailsModal({
             <button
               onClick={() => onMoveBook(selectedBook)}
               className="flex-1 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium shadow-lg"
+              title="Move this book to another bookshelf"
             >
-              Move to Another Bookshelf
+              Move Bookshelf
             </button>
             <button
               onClick={() => onDeleteBook(selectedBook.id)}
               className="flex-1 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium shadow-lg"
+              title="Remove this book from your library"
             >
-              Remove from Library
+              Remove
             </button>
           </div>
         </div>

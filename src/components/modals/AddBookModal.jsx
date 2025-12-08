@@ -40,7 +40,7 @@ export default function AddBookModal({
             <span className="text-3xl">📚</span>
             <h2 className="text-2xl font-bold text-gray-900">Add New Book</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600" title="Close modal">
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -211,6 +211,7 @@ export default function AddBookModal({
                   key={star}
                   onClick={() => setNewBook({ ...newBook, rating: star })}
                   className="transition-transform hover:scale-110"
+                  title={`Rate ${star} star${star !== 1 ? 's' : ''}`}
                 >
                   <Star
                     className={`w-8 h-8 ${star <= newBook.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
@@ -276,6 +277,7 @@ export default function AddBookModal({
           <button
             onClick={onAddBook}
             className="w-full py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg hover:from-indigo-700 hover:to-blue-700 transition-all font-medium"
+            title="Add this book to your library"
           >
             Add to Library
           </button>

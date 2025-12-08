@@ -13,7 +13,7 @@ const AboutBookshelfModal = ({ show, onClose }) => {
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-600 hover:text-gray-900 transition-colors p-2 hover:bg-white/50 rounded-full"
-          title="Close"
+          title="Close modal"
         >
           <X className="w-6 h-6" />
         </button>
@@ -141,7 +141,45 @@ const AboutBookshelfModal = ({ show, onClose }) => {
           </button>
           {isFeaturesExpanded && (
             <div className="mt-4 space-y-4">
+              <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg p-4 border border-indigo-200">
+                <h4 className="text-lg font-bold text-gray-900 mb-2">✨ AI-Powered Recommendations</h4>
+                <p className="text-gray-700 text-sm leading-relaxed">
+                  Get personalized book recommendations powered by OpenAI! Our AI looks at your <strong>4 and 5 star favorites</strong>, 
+                  reads through your reviews and favorite characters, and even checks out your profile bio to figure out what you're 
+                  into. Then it suggests books that'll actually make you want to keep reading! Plus, you can copy the AI prompt and 
+                  use it with other AI tools if you want to experiment. It's like having a book-loving friend who knows exactly what 
+                  you'll love! 🎯
+                </p>
+              </div>
+
+              <div className="bg-gradient-to-r from-pink-50 to-rose-50 rounded-lg p-4 border border-pink-200">
+                <h4 className="text-lg font-bold text-gray-900 mb-2">🤝 Share Books with Friends</h4>
+                <p className="text-gray-700 text-sm leading-relaxed">
+                  Share your favorite books with friends or make them public for everyone to discover! See what books 
+                  your friends are reading in your "Shared with Me" shelf. It's like a book club, but way cooler! 
+                  Find new reads from people who love the same books you do! 📚
+                </p>
+              </div>
+
               <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
+                <h4 className="text-lg font-bold text-gray-900 mb-2">🏷️ Genre Badges & Filtering</h4>
+                <p className="text-gray-700 text-sm leading-relaxed">
+                  Every book gets a colorful genre badge so you can see what type of story it is at a glance! 
+                  Filter by genre to find all your sci-fi books, mysteries, or romances instantly. Plus, see your 
+                  reading stats broken down by genre - discover what you read most! 🎨
+                </p>
+              </div>
+
+              <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-4 border border-yellow-200">
+                <h4 className="text-lg font-bold text-gray-900 mb-2">✨ Fun Book Facts</h4>
+                <p className="text-gray-700 text-sm leading-relaxed">
+                  Every book comes with cool, sparkly facts that make reading even more fun! Learn interesting 
+                  tidbits about your favorite books and authors. It's like having a fun fact generator that knows 
+                  everything about the books you love! 💫
+                </p>
+              </div>
+
+              <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-4 border border-blue-200">
                 <h4 className="text-lg font-bold text-gray-900 mb-2">🎨 Themed Bookshelves</h4>
                 <p className="text-gray-700 text-sm leading-relaxed">
                   Create super cool bookshelves with different animal themes! Each shelf has its own personality 
@@ -149,7 +187,7 @@ const AboutBookshelfModal = ({ show, onClose }) => {
                 </p>
               </div>
 
-              <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-4 border border-blue-200">
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
                 <h4 className="text-lg font-bold text-gray-900 mb-2">📖 Track Everything</h4>
                 <p className="text-gray-700 text-sm leading-relaxed">
                   Keep track of when you started reading, when you finished, and even rate your books! 
@@ -158,7 +196,7 @@ const AboutBookshelfModal = ({ show, onClose }) => {
                 </p>
               </div>
 
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
+              <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-lg p-4 border border-teal-200">
                 <h4 className="text-lg font-bold text-gray-900 mb-2">⭐ Wishlist & Favorites</h4>
                 <p className="text-gray-700 text-sm leading-relaxed">
                   Have a special place for books you want to read (your wishlist) and books you absolutely loved 
@@ -166,7 +204,7 @@ const AboutBookshelfModal = ({ show, onClose }) => {
                 </p>
               </div>
 
-              <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-4 border border-yellow-200">
+              <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg p-4 border border-amber-200">
                 <h4 className="text-lg font-bold text-gray-900 mb-2">🎮 Level Up & Achievements</h4>
                 <p className="text-gray-700 text-sm leading-relaxed">
                   Reading is like a game! Earn XP (experience points) for every book you finish, level up, 
@@ -174,31 +212,24 @@ const AboutBookshelfModal = ({ show, onClose }) => {
                 </p>
               </div>
 
-              <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg p-4 border border-indigo-200">
-                <h4 className="text-lg font-bold text-gray-900 mb-2">🔍 Search & Find</h4>
+              <div className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-lg p-4 border border-violet-200">
+                <h4 className="text-lg font-bold text-gray-900 mb-2">🔍 Smart Search & Filter</h4>
                 <p className="text-gray-700 text-sm leading-relaxed">
-                  Can't remember where you put that book? No problem! Search by title or author to find it instantly. 
-                  You can also filter to see only books you've read, haven't read, or rated!
+                  Can't remember where you put that book? No problem! Search by title, author, or genre to find it instantly. 
+                  Filter by rating, genre, or reading status - find exactly what you're looking for in seconds!
                 </p>
               </div>
 
-              <div className="bg-gradient-to-r from-pink-50 to-rose-50 rounded-lg p-4 border border-pink-200">
-                <h4 className="text-lg font-bold text-gray-900 mb-2">📊 Reading Stats</h4>
+              <div className="bg-gradient-to-r from-rose-50 to-pink-50 rounded-lg p-4 border border-rose-200">
+                <h4 className="text-lg font-bold text-gray-900 mb-2">📊 Reading Stats & Insights</h4>
                 <p className="text-gray-700 text-sm leading-relaxed">
-                  See how many books you've read this month, your average rating, and even your favorite author! 
-                  Set monthly reading goals and watch yourself crush them! 📈
+                  See how many books you've read this month, your average rating, favorite genres, and even your 
+                  top authors! Set monthly reading goals and watch yourself crush them! Plus, see your genre 
+                  breakdown to discover your reading patterns! 📈
                 </p>
               </div>
 
-              <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-lg p-4 border border-teal-200">
-                <h4 className="text-lg font-bold text-gray-900 mb-2">💡 Book Recommendations</h4>
-                <p className="text-gray-700 text-sm leading-relaxed">
-                  Get awesome book suggestions based on what you've read! Discover new books you might love and 
-                  add them to your wishlist with just one click!
-                </p>
-              </div>
-
-              <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg p-4 border border-amber-200">
+              <div className="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-lg p-4 border border-cyan-200">
                 <h4 className="text-lg font-bold text-gray-900 mb-2">📱 Multiple Views</h4>
                 <p className="text-gray-700 text-sm leading-relaxed">
                   View your books as cool covers, as spines on a shelf, or in a detailed table! Switch between 
@@ -206,7 +237,7 @@ const AboutBookshelfModal = ({ show, onClose }) => {
                 </p>
               </div>
 
-              <div className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-lg p-4 border border-violet-200">
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg p-4 border border-emerald-200">
                 <h4 className="text-lg font-bold text-gray-900 mb-2">📤 Export Your Data</h4>
                 <p className="text-gray-700 text-sm leading-relaxed">
                   Want to keep a backup or share your reading list? Export all your books to CSV or JSON format 
@@ -233,7 +264,7 @@ const AboutBookshelfModal = ({ show, onClose }) => {
           </div>
         </div>
 
-        <button onClick={onClose} className="w-full bg-white hover:bg-gray-50 text-gray-900 py-3 rounded-xl font-semibold transition-all border border-amber-200 shadow-sm">Close</button>
+        <button onClick={onClose} className="w-full bg-white hover:bg-gray-50 text-gray-900 py-3 rounded-xl font-semibold transition-all border border-amber-200 shadow-sm" title="Close modal">Close</button>
       </div>
     </div>
   );

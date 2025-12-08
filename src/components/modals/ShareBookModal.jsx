@@ -146,7 +146,7 @@ export default function ShareBookModal({
             <Share2 className="w-6 h-6 text-indigo-600" />
             <h2 className="text-2xl font-bold text-gray-900">Share Book</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600" title="Close modal">
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -259,6 +259,7 @@ export default function ShareBookModal({
             <button
               onClick={onClose}
               className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+              title="Cancel sharing"
             >
               Cancel
             </button>
@@ -266,6 +267,7 @@ export default function ShareBookModal({
               onClick={handleShare}
               disabled={isLoading}
               className="flex-1 py-3 px-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              title={isLoading ? 'Sharing book...' : 'Share this book with selected users'}
             >
               {isLoading ? 'Sharing...' : 'Share Book'}
             </button>

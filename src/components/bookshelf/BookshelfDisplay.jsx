@@ -44,9 +44,9 @@ export default function BookshelfDisplay({
       <div className={`bg-white/20 rounded-xl p-6 min-h-[400px] relative z-10`}>
         {filteredBooks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-white">
-            <div className="text-8xl mb-4 opacity-75">📚</div>
-            <p className="text-xl font-semibold">Your bookshelf is empty</p>
-            <p className="text-sm opacity-75">Add your first book to get started!</p>
+            <div className="text-8xl mb-4 opacity-75 animate-bounce">📚</div>
+            <p className="text-xl font-semibold mb-2">Ready to start your reading adventure? 🚀</p>
+            <p className="text-sm opacity-90">Your bookshelf is waiting for its first book! Click the + button to add one and let the magic begin! ✨</p>
           </div>
         ) : (
           activeShelf?.displayMode === 'table' ? (

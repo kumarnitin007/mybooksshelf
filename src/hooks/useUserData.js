@@ -24,12 +24,13 @@ export function useUserData(currentUser) {
   const [loadingUserStats, setLoadingUserStats] = useState(false);
 
   const loadUserProfile = async () => {
-    if (!currentUser) return;
+    if (!currentUser || !currentUser.id) return;
 
     try {
       const { data: profileData, error: profileError } = await getUserProfile(currentUser.id);
       
-      if (profileError) {
+      // Only log errors that are actual problems (not missing profiles)
+      if (profileError && profileError.code !== 'PGRST116') {
         console.error('Error loading profile:', profileError);
       } else if (profileData) {
         setUserProfile({
@@ -41,6 +42,7 @@ export function useUserData(currentUser) {
           hideFromComparison: profileData.hide_from_comparison || false
         });
       }
+      // If no profile exists, that's fine - user will create one later
 
       // Load ignored suggestions from database
       const { data: ignoredData, error: ignoredError } = await getIgnoredSuggestions(currentUser.id);

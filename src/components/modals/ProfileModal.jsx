@@ -117,6 +117,7 @@ export default function ProfileModal({
             <button
               onClick={() => setShowAvatarSelector(!showAvatarSelector)}
               className="flex items-center justify-center gap-2 mx-auto px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-200 hover:bg-indigo-100 transition-colors"
+              title="Change your avatar"
             >
               <span className="text-xl">{userProfile.avatar || '📚'}</span>
               <span className="font-medium">Change Avatar</span>
@@ -150,12 +151,17 @@ export default function ProfileModal({
 
           {/* Bio */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Bio (Optional)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Your Story ✨ (Helps AI find your perfect reads!)
+            </label>
+            <p className="text-xs text-gray-500 mb-2">
+              🎯 Tell us what makes you tick! Your hobbies, favorite topics, or what kind of stories you love. Our AI will use this to suggest books that'll actually make you want to keep reading!
+            </p>
             <textarea
               value={userProfile.bio || ''}
               onChange={(e) => setUserProfile({ ...userProfile, bio: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-              placeholder="Tell us about yourself..."
+              placeholder="Love sci-fi adventures? Obsessed with mysteries? Into romance? Tell us what gets you excited and we'll find books you won't be able to put down! 📚"
               rows="3"
               maxLength={200}
             />
