@@ -48,7 +48,7 @@ export default function UserComparisonModal({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[600px]">
               <thead>
                 <tr className="border-b-2 border-gray-200">
                   <th className="text-left py-3 px-4 font-semibold text-gray-700">User</th>
@@ -108,7 +108,7 @@ export default function UserComparisonModal({
                           <span className="text-lg font-semibold text-indigo-600">{monthlyBooks}</span>
                         </td>
                         <td className="text-center py-4 px-4">
-                          <span className="text-lg font-semibold text-yellow-600">Level {userLevel}</span>
+                          <span className="text-lg font-semibold text-yellow-600 whitespace-nowrap">Level {userLevel}</span>
                         </td>
                         <td className="text-center py-4 px-4">
                           <span className="text-lg font-semibold text-orange-600">{userXP.toLocaleString()}</span>

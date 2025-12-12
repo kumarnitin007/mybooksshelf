@@ -50,45 +50,45 @@ export default function Header({
               <p className="text-xs sm:text-base text-gray-600">{totalBooks} books</p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-1.5 sm:gap-3 w-full sm:w-auto justify-end">
+          <div className="flex flex-nowrap gap-1 sm:gap-2 overflow-x-auto w-full sm:w-auto justify-end">
             {currentUser && (
               <button
                 onClick={onShowUserComparison}
-                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-500 text-white rounded-lg sm:rounded-xl hover:bg-blue-600 transition-all text-xs sm:text-base"
+                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-blue-500 text-white rounded-lg sm:rounded-xl hover:bg-blue-600 transition-all text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
                 title="Compare Users"
               >
-                <User className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline">Compare Users</span>
+                <User className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                <span className="hidden sm:inline">Compare</span>
               </button>
             )}
             <button
               onClick={onShowAbout}
-              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-green-500 text-white rounded-lg sm:rounded-xl hover:bg-green-600 transition-all text-xs sm:text-base"
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-green-500 text-white rounded-lg sm:rounded-xl hover:bg-green-600 transition-all text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
               title="About Bookshelf"
             >
-              <Info className="w-4 h-4 sm:w-5 sm:h-5" />
+              <Info className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
               <span className="hidden sm:inline">About</span>
             </button>
             <button
               onClick={onShowProfile}
-              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-purple-500 text-white rounded-lg sm:rounded-xl hover:bg-purple-600 transition-all text-xs sm:text-base"
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-purple-500 text-white rounded-lg sm:rounded-xl hover:bg-purple-600 transition-all text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
               title="Profile"
             >
-              <User className="w-4 h-4 sm:w-5 sm:h-5" />
+              <User className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
               <span className="hidden sm:inline">Profile</span>
             </button>
             <button
               onClick={onShowPublicRecommendations}
-              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg sm:rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all shadow-md text-xs sm:text-base"
+              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg sm:rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all shadow-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
               title="Public Recommendations"
             >
-              <Globe className="w-4 h-4 sm:w-5 sm:h-5" />
+              <Globe className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
               <span className="hidden sm:inline">Public Feed</span>
             </button>
             <button
               onClick={onShowAIRecommendations}
               disabled={currentUser?.username === 'Default User'}
-              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg sm:rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md text-xs sm:text-base ${
+              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg sm:rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md text-xs sm:text-sm ${
                 currentUser?.username === 'Default User' 
                   ? 'opacity-50 cursor-not-allowed' 
                   : ''
@@ -99,25 +99,25 @@ export default function Header({
                   : 'AI-Powered Recommendations'
               }
             >
-              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span className="hidden sm:inline">AI Recommendations</span>
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+              <span className="whitespace-nowrap">Ask AI</span>
             </button>
             {currentUser && currentUser.username !== 'Default User' && (
               <>
                 <button
                   onClick={onShowChallenges}
-                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg sm:rounded-xl hover:from-orange-700 hover:to-red-700 transition-all shadow-md text-xs sm:text-base"
+                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg sm:rounded-xl hover:from-orange-700 hover:to-red-700 transition-all shadow-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
                   title="Reading Challenges"
                 >
-                  <Target className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <Target className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
                   <span className="hidden sm:inline">Challenges</span>
                 </button>
                 <button
                   onClick={onShowRewards}
-                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-yellow-600 to-amber-600 text-white rounded-lg sm:rounded-xl hover:from-yellow-700 hover:to-amber-700 transition-all shadow-md text-xs sm:text-base"
+                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-yellow-600 to-amber-600 text-white rounded-lg sm:rounded-xl hover:from-yellow-700 hover:to-amber-700 transition-all shadow-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
                   title="Virtual Rewards"
                 >
-                  <Trophy className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <Trophy className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
                   <span className="hidden sm:inline">Rewards</span>
                 </button>
               </>

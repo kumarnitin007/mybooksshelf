@@ -188,7 +188,8 @@ export default function App() {
     setNewAchievement,
     loadGamificationData,
     checkAchievements,
-    handleBookFinished
+    handleBookFinished,
+    updateChallengesForBook
   } = gamification;
   
   // Modal states
@@ -206,6 +207,17 @@ export default function App() {
       loadUserProfile();
     }
   }, [currentUser]);
+
+  // Listen for XP updates to reload gamification data
+  useEffect(() => {
+    const handleXPUpdate = () => {
+      if (loadGamificationData) {
+        loadGamificationData();
+      }
+    };
+    window.addEventListener('xpUpdated', handleXPUpdate);
+    return () => window.removeEventListener('xpUpdated', handleXPUpdate);
+  }, [loadGamificationData]);
 
   // initializeAuth and loadDefaultUser are now handled by useAuth hook
 
@@ -957,7 +969,6 @@ export default function App() {
             ? targetShelf.id 
             : targetShelf.dbId || targetShelf.id;
 
-          console.log('Attempting to save book with bookshelfId:', bookshelfId, 'bookshelf:', targetShelf);
           const result = await createBook(bookshelfId, bookData);
           
           if (result.error) {
@@ -968,7 +979,6 @@ export default function App() {
             // Continue with local save even if DB save fails
           } else {
             savedBook = result.data;
-            console.log('✅ Book saved to database:', savedBook);
           }
         } catch (error) {
           console.error('Error saving book to Supabase:', error);
@@ -1029,6 +1039,16 @@ export default function App() {
       // Update bookshelves - this is the main state update
       setBookshelves(updatedBookshelves);
       saveActiveIndex(); // Save active index
+      
+      // Update challenge progress when book is added (only if book has finishDate)
+      // Books without finishDate are just pending additions, not completed reads
+      if (currentUser && savedBook?.id && updateChallengesForBook) {
+        // Only update challenges if the book has a finishDate (not empty string)
+        if (newBook.finishDate && newBook.finishDate.trim() !== '') {
+          await updateChallengesForBook(savedBook.id, newBook);
+        }
+      }
+      
       setShowAddModal(false);
       setNewBook({
         title: '',
@@ -1463,7 +1483,6 @@ export default function App() {
           // Continue with local save even if DB save fails
         } else {
           savedBook = result.data;
-          console.log('Book saved to database:', savedBook);
         }
       } catch (error) {
         console.error('Error saving book to Supabase:', error);
@@ -2158,19 +2177,19 @@ export default function App() {
             </button>
             <button
               onClick={() => setShowAddModal(true)}
-              className="ml-auto px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg font-medium hover:from-indigo-700 hover:to-blue-700"
+              className="ml-auto px-2 sm:px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg font-medium hover:from-indigo-700 hover:to-blue-700 flex items-center gap-1 sm:gap-2"
               title="Add a new book to your library"
             >
-              <Plus className="w-4 h-4 inline mr-1" />
-              Add Book
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+              <span className="whitespace-nowrap">Add Book</span>
             </button>
             <button
               onClick={createNewBookshelf}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700"
+              className="px-2 sm:px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 flex items-center gap-1 sm:gap-2"
               title="Create a new bookshelf"
             >
-              <Plus className="w-4 h-4 inline mr-1" />
-              New Bookshelf
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+              <span className="hidden sm:inline whitespace-nowrap">New Bookshelf</span>
             </button>
           </div>
 
@@ -2274,7 +2293,6 @@ export default function App() {
                           alert(`Failed to save animal selection to database: ${result.error.message || 'Unknown error'}. The change may not persist after page reload.`);
                           // Continue with local update so user sees the change
                         } else {
-                          console.log('Bookshelf animal updated successfully in database:', result.data);
                         }
 
                         // Update local state
@@ -2735,6 +2753,9 @@ export default function App() {
         show={showRewardsModal}
         currentUser={currentUser}
         userRewards={userRewards}
+        userXP={userXP}
+        challenges={challenges}
+        recentAchievements={recentAchievements}
         onClose={() => setShowRewardsModal(false)}
       />
 

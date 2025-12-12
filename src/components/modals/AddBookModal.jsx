@@ -200,6 +200,10 @@ export default function AddBookModal({
                 onChange={(e) => setNewBook({ ...newBook, finishDate: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
+              <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
+                <span>💡</span>
+                <span>Add a finish date to count this book toward your reading challenges and earn XP!</span>
+              </p>
             </div>
           </div>
 

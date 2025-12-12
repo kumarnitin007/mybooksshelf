@@ -86,9 +86,14 @@ export const addXP = async (userId, xpAmount, reason = '') => {
     // Get current XP
     const { data: currentXP, error: fetchError } = await getUserXP(userId);
     if (fetchError) throw fetchError;
-
-    const newTotalXP = (currentXP.data.total_xp || 0) + xpAmount;
-    const currentLevel = currentXP.data.current_level || 1;
+    
+    // Handle case where currentXP might be null or undefined
+    if (!currentXP) {
+      console.warn('No XP data found for user, using defaults');
+    }
+    const totalXP = currentXP?.total_xp || 0;
+    const currentLevel = currentXP?.current_level || 1;
+    const newTotalXP = totalXP + xpAmount;
     
     // Calculate new level (100 XP per level, increasing by 50 each level)
     const baseXP = 100;
@@ -413,19 +418,54 @@ export const getChallenges = async (userId) => {
     if (myError) throw myError;
 
     // Get challenges shared with user
-    const { data: sharedChallenges, error: sharedError } = await supabase
+    // RLS policies should allow users to see challenges shared with them
+    // Fetch all challenges the user can see (RLS will filter) and filter in JavaScript
+    const { data: allChallengesData, error: allError } = await supabase
       .from('bk_reading_challenges')
       .select('*')
-      .contains('shared_with', [userId])
       .order('created_at', { ascending: false });
-
-    if (sharedError) throw sharedError;
+    
+    if (allError) {
+      console.warn('Error fetching all challenges, using only user-created challenges:', allError);
+      return { data: myChallenges || [], error: null };
+    }
+    
+    // Filter challenges where user is in shared_with array (excluding ones already in myChallenges)
+    const filteredShared = (allChallengesData || []).filter(c => {
+      // Skip challenges already in myChallenges (to avoid duplicates)
+      if (myChallenges && myChallenges.some(mc => mc.id === c.id)) {
+        return false;
+      }
+      
+      // Check if user is in shared_with array
+      if (!c.shared_with) return false;
+      
+      let sharedArray = c.shared_with;
+      if (typeof sharedArray === 'string') {
+        try {
+          sharedArray = JSON.parse(sharedArray);
+        } catch (e) {
+          // If parsing fails, try splitting if comma-separated
+          if (sharedArray.includes(',')) {
+            sharedArray = sharedArray.split(',').map(id => id.trim());
+          } else {
+            sharedArray = [sharedArray];
+          }
+        }
+      }
+      
+      if (!Array.isArray(sharedArray)) return false;
+      
+      // Check if userId is in the shared_with array
+      return sharedArray.map(id => String(id)).includes(String(userId));
+    });
 
     // Combine and deduplicate
-    const allChallenges = [...(myChallenges || []), ...(sharedChallenges || [])];
+    const allChallengesCombined = [...(myChallenges || []), ...filteredShared];
     const uniqueChallenges = Array.from(
-      new Map(allChallenges.map(c => [c.id, c])).values()
+      new Map(allChallengesCombined.map(c => [c.id, c])).values()
     );
+
 
     return { data: uniqueChallenges, error: null };
   } catch (error) {
@@ -436,12 +476,51 @@ export const getChallenges = async (userId) => {
 
 export const createChallenge = async (userId, challengeData) => {
   try {
+    // Check if user already has 5 challenges
+    const { data: existingChallenges, error: countError } = await supabase
+      .from('bk_reading_challenges')
+      .select('id')
+      .eq('user_id', userId);
+
+    if (countError) throw countError;
+
+    if (existingChallenges && existingChallenges.length >= 5) {
+      return { 
+        data: null, 
+        error: { message: 'You can only create up to 5 challenges. Please delete an existing challenge first.' } 
+      };
+    }
+
+    // Extract shared_with separately to handle both sharedWith and shared_with
+    let sharedWith = challengeData.sharedWith || challengeData.shared_with || [];
+    
+    // Limit to 5 users max (including creator)
+    if (sharedWith.length > 4) {
+      return { 
+        data: null, 
+        error: { message: 'You can only share a challenge with up to 4 other users (5 total including you).' } 
+      };
+    }
+    
+    // Automatically add the creator to shared_with if not already included
+    if (!sharedWith.includes(userId)) {
+      sharedWith = [...sharedWith, userId];
+    }
+    
     const { data, error } = await supabase
       .from('bk_reading_challenges')
       .insert([{
         user_id: userId,
-        shared_with: challengeData.sharedWith || [],
-        ...challengeData
+        shared_with: sharedWith,
+        challenge_name: challengeData.challenge_name,
+        challenge_type: challengeData.challenge_type || 'reading', // Default to 'reading' if not provided
+        target_count: challengeData.target_count,
+        current_count: challengeData.current_count || 0,
+        start_date: challengeData.start_date,
+        end_date: challengeData.end_date,
+        reward_xp: challengeData.reward_xp || 0,
+        description: challengeData.description || null,
+        is_completed: challengeData.is_completed || false
       }])
       .select()
       .single();
@@ -455,6 +534,26 @@ export const createChallenge = async (userId, challengeData) => {
 
 export const shareChallenge = async (challengeId, userIds) => {
   try {
+    // Get the challenge to check current shared_with
+    const { data: challenge, error: fetchError } = await supabase
+      .from('bk_reading_challenges')
+      .select('user_id, shared_with')
+      .eq('id', challengeId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    // Include creator in the count
+    const allUsers = [...(userIds || []), challenge.user_id];
+    
+    // Limit to 5 users max
+    if (allUsers.length > 5) {
+      return { 
+        data: null, 
+        error: { message: 'You can only share a challenge with up to 4 other users (5 total including creator).' } 
+      };
+    }
+
     const { data, error } = await supabase
       .from('bk_reading_challenges')
       .update({
@@ -485,21 +584,116 @@ export const deleteChallenge = async (challengeId) => {
   }
 };
 
-export const updateChallengeProgress = async (challengeId, bookId) => {
+export const updateChallengeProgress = async (challengeId, bookId, userId) => {
   try {
-    // Add book to challenge
-    const { error: linkError } = await supabase
-      .from('bk_challenge_books')
-      .insert([{
-        challenge_id: challengeId,
-        book_id: bookId
-      }]);
-
-    if (linkError && linkError.code !== '23505') { // Ignore duplicate key error
-      throw linkError;
+    
+    // Check if book is already linked to this challenge for this user
+    // Try with user_id first, fallback to old method if column doesn't exist
+    let existingLink = null;
+    try {
+      const { data, error } = await supabase
+        .from('bk_challenge_books')
+        .select('*')
+        .eq('challenge_id', challengeId)
+        .eq('book_id', bookId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      if (error && error.message && error.message.includes('user_id')) {
+        // If user_id column doesn't exist, check without it (backward compatibility)
+        const { data: fallbackData } = await supabase
+          .from('bk_challenge_books')
+          .select('*')
+          .eq('challenge_id', challengeId)
+          .eq('book_id', bookId)
+          .maybeSingle();
+        existingLink = fallbackData;
+      } else {
+        existingLink = data;
+      }
+    } catch (err) {
+      console.error('Error checking existing link:', err);
+      // If user_id column doesn't exist, check without it (backward compatibility)
+      const { data } = await supabase
+        .from('bk_challenge_books')
+        .select('*')
+        .eq('challenge_id', challengeId)
+        .eq('book_id', bookId)
+        .maybeSingle();
+      existingLink = data;
     }
 
-    // Update challenge progress
+    // If book is already linked for this user, don't update progress (prevent double-counting)
+    if (existingLink) {
+      return { data: null, error: null, alreadyCounted: true };
+    }
+
+        // Add book to challenge with user_id (only if not already linked)
+        // Try with user_id first, fallback if column doesn't exist
+        let linkError = null;
+        try {
+          const { error } = await supabase
+            .from('bk_challenge_books')
+            .insert([{
+              challenge_id: challengeId,
+              book_id: bookId,
+              user_id: userId
+            }]);
+          linkError = error;
+        } catch (err) {
+          // If user_id column doesn't exist, insert without it (backward compatibility)
+          const { error } = await supabase
+            .from('bk_challenge_books')
+            .insert([{
+              challenge_id: challengeId,
+              book_id: bookId
+            }]);
+          linkError = error;
+        }
+
+    if (linkError) {
+      // If it's a duplicate key error, book was already added (race condition)
+      if (linkError.code === '23505') {
+        return { data: null, error: null, alreadyCounted: true };
+      }
+      // If it's a column not found error, the migration hasn't been run yet
+      if (linkError.message && linkError.message.includes('user_id')) {
+        console.warn('user_id column not found in bk_challenge_books. Please run the database migration.');
+        // Fallback: insert without user_id
+        const { error: fallbackError } = await supabase
+          .from('bk_challenge_books')
+          .insert([{
+            challenge_id: challengeId,
+            book_id: bookId
+          }]);
+        if (fallbackError && fallbackError.code !== '23505') {
+          throw fallbackError;
+        }
+      } else {
+        throw linkError;
+      }
+    }
+
+    // Get user's progress for this challenge
+    // Try with user_id first, fallback if column doesn't exist
+    let userProgress = 0;
+    try {
+      const { count } = await supabase
+        .from('bk_challenge_books')
+        .select('*', { count: 'exact', head: true })
+        .eq('challenge_id', challengeId)
+        .eq('user_id', userId);
+      userProgress = count || 0;
+    } catch (err) {
+      // If user_id column doesn't exist, count all books for this challenge (backward compatibility)
+      const { count } = await supabase
+        .from('bk_challenge_books')
+        .select('*', { count: 'exact', head: true })
+        .eq('challenge_id', challengeId);
+      userProgress = count || 0;
+    }
+
+    // Get challenge details
     const { data: challenge } = await supabase
       .from('bk_reading_challenges')
       .select('*')
@@ -507,34 +701,85 @@ export const updateChallengeProgress = async (challengeId, bookId) => {
       .single();
 
     if (challenge) {
-      const newCount = (challenge.current_count || 0) + 1;
-      const isCompleted = newCount >= challenge.target_count;
+      const isCompleted = (userProgress || 0) >= challenge.target_count;
 
-      const { data, error } = await supabase
-        .from('bk_reading_challenges')
-        .update({
-          current_count: newCount,
-          is_completed: isCompleted,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', challengeId)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Award XP if completed
-      if (isCompleted && challenge.reward_xp > 0) {
-        await addXP(challenge.user_id, challenge.reward_xp, 'Challenge completed');
+      // Update challenge's is_completed flag if this user completed it
+      // Note: We only update if the challenge wasn't already marked as completed
+      // to avoid overwriting if another user completed it first
+      if (isCompleted && !challenge.is_completed) {
+        // Update the challenge to mark it as completed
+        // This is a per-user completion, but we mark the challenge as completed
+        // when any participant completes it (or we could track per-user completion separately)
+        await supabase
+          .from('bk_reading_challenges')
+          .update({ 
+            is_completed: true,
+            current_count: Math.max(challenge.current_count || 0, userProgress)
+          })
+          .eq('id', challengeId);
+      } else if (isCompleted && challenge.current_count < userProgress) {
+        // Update current_count if this user's progress is higher
+        await supabase
+          .from('bk_reading_challenges')
+          .update({ 
+            current_count: userProgress
+          })
+          .eq('id', challengeId);
       }
 
-      return { data, error: null, completed: isCompleted };
+      // Award XP if this user completed the challenge
+      let xpAwarded = null;
+      if (isCompleted && challenge.reward_xp > 0) {
+        const xpResult = await addXP(userId, challenge.reward_xp, 'Challenge completed');
+        if (xpResult.data) {
+          xpAwarded = {
+            amount: challenge.reward_xp,
+            totalXP: xpResult.data.total_xp,
+            leveledUp: xpResult.leveledUp,
+            newLevel: xpResult.newLevel
+          };
+        }
+      }
+
+      return { 
+        data: { userProgress: userProgress || 0, isCompleted }, 
+        error: null, 
+        completed: isCompleted,
+        xpAwarded 
+      };
     }
 
     return { data: null, error: null };
   } catch (error) {
     console.error('Error updating challenge progress:', error);
     return { data: null, error };
+  }
+};
+
+// Get progress for all users in a challenge
+export const getChallengeUserProgress = async (challengeId) => {
+  try {
+    // Get all books linked to this challenge with user info
+    const { data: challengeBooks, error } = await supabase
+      .from('bk_challenge_books')
+      .select('user_id, book_id')
+      .eq('challenge_id', challengeId);
+
+    if (error) throw error;
+
+    // Count books per user
+    const userProgress = {};
+    (challengeBooks || []).forEach(cb => {
+      if (!userProgress[cb.user_id]) {
+        userProgress[cb.user_id] = 0;
+      }
+      userProgress[cb.user_id]++;
+    });
+
+    return { data: userProgress, error: null };
+  } catch (error) {
+    console.error('Error getting challenge user progress:', error);
+    return { data: {}, error };
   }
 };
 

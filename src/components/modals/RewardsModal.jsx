@@ -9,12 +9,18 @@ import { getUserRewards } from '../../services/gamificationService';
  * @param {boolean} show - Whether to show the modal
  * @param {object} currentUser - Current logged in user
  * @param {array} userRewards - Array of user rewards
+ * @param {object} userXP - User XP data (level, total XP, etc.)
+ * @param {array} challenges - Array of challenges (to show completed ones that awarded XP)
+ * @param {array} recentAchievements - Array of recent achievements
  * @param {function} onClose - Callback to close the modal
  */
 export default function RewardsModal({
   show,
   currentUser,
   userRewards = [],
+  userXP = null,
+  challenges = [],
+  recentAchievements = [],
   onClose
 }) {
   const [rewards, setRewards] = useState([]);
@@ -87,6 +93,81 @@ export default function RewardsModal({
         </div>
 
         <div className="p-6 flex-grow">
+          {/* XP Summary Section */}
+          {userXP && (
+            <div className="mb-6 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-4 border-2 border-yellow-300">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="bg-yellow-500 rounded-full p-3">
+                    <Sparkles className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-600 mb-1">Your Experience Points</h3>
+                    <div className="flex items-baseline gap-3">
+                      <div>
+                        <span className="text-2xl font-bold text-yellow-600">Level {userXP.current_level || 1}</span>
+                      </div>
+                      <div className="text-gray-600">
+                        <span className="text-lg font-semibold text-orange-600">{userXP.total_xp || 0}</span>
+                        <span className="text-sm ml-1">XP</span>
+                      </div>
+                    </div>
+                    {userXP.xp_to_next_level > 0 && (
+                      <div className="mt-2">
+                        <div className="text-xs text-gray-600 mb-1">
+                          {userXP.xp_to_next_level} XP needed for Level {userXP.current_level + 1}
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full transition-all"
+                            style={{ 
+                              width: `${Math.min(100, ((userXP.total_xp || 0) % (100 + (userXP.current_level - 1) * 50)) / (userXP.xp_to_next_level || 100) * 100)}%` 
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* XP History Section */}
+          {(() => {
+            if (!challenges || challenges.length === 0) return null;
+            
+            const completedChallenges = challenges.filter(c => {
+              // Check if challenge is completed - either is_completed flag or progress >= target
+              const isCompleted = c.is_completed || (c.current_count >= c.target_count);
+              const hasRewardXP = c.reward_xp && c.reward_xp > 0;
+              return isCompleted && hasRewardXP;
+            });
+            
+            if (completedChallenges.length > 0) {
+              return (
+                <div className="mb-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg p-4 border border-indigo-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-indigo-600" />
+                    XP History
+                  </h3>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {completedChallenges.map(challenge => (
+                      <div key={challenge.id} className="flex items-center justify-between text-sm bg-white rounded p-2 border border-indigo-100">
+                        <div className="flex items-center gap-2">
+                          <Trophy className="w-4 h-4 text-yellow-600" />
+                          <span className="text-gray-700">Completed: <strong>{challenge.challenge_name}</strong></span>
+                        </div>
+                        <span className="text-yellow-600 font-bold">+{challenge.reward_xp} XP</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
+
           {/* Filter Tabs */}
           <div className="flex gap-2 mb-6 border-b border-gray-200">
             <button
@@ -129,13 +210,16 @@ export default function RewardsModal({
           ) : filteredRewards.length === 0 ? (
             <div className="text-center py-12">
               <Trophy className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-600 font-medium mb-2">No Rewards Yet</p>
-              <p className="text-sm text-gray-500">
+              <p className="text-gray-600 font-medium mb-2">No Virtual Rewards Yet</p>
+              <p className="text-sm text-gray-500 mb-3">
                 {filter === 'unlocked'
-                  ? "You haven't unlocked any rewards yet. Keep reading to earn rewards!"
+                  ? "You haven't unlocked any virtual rewards (badges, titles, achievements) yet. Keep reading to earn rewards!"
                   : filter === 'locked'
                   ? "No locked rewards available."
-                  : "Start reading and completing challenges to earn virtual rewards!"}
+                  : "Virtual rewards (badges, titles, achievements) will appear here when you unlock them. Your XP from completed challenges is shown in the XP History section above."}
+              </p>
+              <p className="text-xs text-gray-400 italic">
+                Note: XP History shows your completed challenges. Virtual rewards are separate badges/titles you can unlock.
               </p>
             </div>
           ) : (
@@ -200,18 +284,35 @@ export default function RewardsModal({
           )}
 
           {/* Info Section */}
-          <div className="mt-8 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-4 border border-yellow-200">
-            <div className="flex items-start gap-3">
-              <Sparkles className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-1">How to Earn Rewards</h4>
-                <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
-                  <li>Complete reading challenges</li>
-                  <li>Reach reading milestones (10, 25, 50, 100 books)</li>
-                  <li>Maintain reading streaks</li>
-                  <li>Unlock achievements</li>
-                  <li>Level up your reading profile</li>
-                </ul>
+          <div className="mt-8 space-y-4">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+              <div className="flex items-start gap-3">
+                <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-1">About XP (Experience Points)</h4>
+                  <p className="text-sm text-gray-700 mb-2">
+                    Your current Level and Total XP are shown at the top of this modal. XP is automatically added when you complete challenges!
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <strong>When you complete a challenge:</strong> You'll receive the XP reward defined for that challenge. Your total XP and level are also displayed in the header stats at the top of the page.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-4 border border-yellow-200">
+              <div className="flex items-start gap-3">
+                <Sparkles className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-1">How to Earn Rewards</h4>
+                  <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
+                    <li>Complete reading challenges (earn XP - shown in header stats)</li>
+                    <li>Reach reading milestones (10, 25, 50, 100 books)</li>
+                    <li>Maintain reading streaks</li>
+                    <li>Unlock achievements</li>
+                    <li>Level up your reading profile</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>

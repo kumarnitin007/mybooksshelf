@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   getUserXP,
   addXP,
@@ -30,7 +30,7 @@ export function useGamification(currentUser, bookshelves) {
   const [showAchievementModal, setShowAchievementModal] = useState(false);
   const [newAchievement, setNewAchievement] = useState(null);
 
-  const loadGamificationData = async () => {
+  const loadGamificationData = useCallback(async () => {
     if (!currentUser) return;
 
     try {
@@ -56,7 +56,7 @@ export function useGamification(currentUser, bookshelves) {
     } catch (error) {
       console.error('Error loading gamification data:', error);
     }
-  };
+  }, [currentUser]);
 
   const checkAchievements = async (userId, bookshelves) => {
     try {
@@ -158,7 +158,7 @@ export function useGamification(currentUser, bookshelves) {
           new Date(c.start_date) <= new Date()
         );
         for (const challenge of activeChallenges) {
-          await updateChallengeProgress(challenge.id, bookId);
+          await updateChallengeProgress(challenge.id, bookId, currentUser.id);
         }
         // Reload challenges
         const { data: updatedChallenges } = await getChallenges(currentUser.id);
@@ -166,6 +166,111 @@ export function useGamification(currentUser, bookshelves) {
       }
     } catch (error) {
       console.error('Error handling book finished:', error);
+    }
+  };
+
+  const updateChallengesForBook = async (bookId, bookData = null) => {
+    if (!currentUser || !challenges.length) {
+      console.log('Skipping challenge update: no currentUser or no challenges');
+      return;
+    }
+    
+    try {
+      // If bookData is provided, check if it has a finishDate
+      // Only count books with finishDate toward challenges
+      if (bookData !== null) {
+        // If bookData is an object, check finishDate property
+        const hasFinishDate = bookData && (
+          (typeof bookData === 'object' && bookData.finishDate && bookData.finishDate.trim() !== '') ||
+          (typeof bookData === 'string' && bookData.trim() !== '') // If it's just the finishDate string
+        );
+        
+        if (!hasFinishDate) {
+          // Book doesn't have finishDate, don't count it toward challenges
+          console.log('Book does not have finishDate, skipping challenge update');
+          return;
+        }
+      }
+      
+      // Get all active challenges where user is either creator or in shared_with
+      const activeChallenges = challenges.filter(c => {
+        if (c.is_completed) return false;
+        
+        const now = new Date();
+        const endDate = new Date(c.end_date);
+        const startDate = new Date(c.start_date);
+        
+        if (endDate < now) return false;
+        if (startDate > now) return false;
+        
+        // Check if user is creator
+        if (String(c.user_id) === String(currentUser.id)) {
+          return true;
+        }
+        
+        // Check if user is in shared_with array
+        if (c.shared_with) {
+          let sharedArray = c.shared_with;
+          if (typeof sharedArray === 'string') {
+            try {
+              sharedArray = JSON.parse(sharedArray);
+            } catch (e) {
+              if (sharedArray.includes(',')) {
+                sharedArray = sharedArray.split(',').map(id => id.trim());
+              } else {
+                sharedArray = [sharedArray];
+              }
+            }
+          }
+          
+          if (Array.isArray(sharedArray)) {
+            return sharedArray.map(id => String(id)).includes(String(currentUser.id));
+          }
+        }
+        
+        return false;
+      });
+      
+      
+      let xpAwarded = null;
+      for (const challenge of activeChallenges) {
+        const result = await updateChallengeProgress(challenge.id, bookId, currentUser.id);
+        if (result.error) {
+          console.error('Error updating challenge progress:', result.error);
+        } else {
+          // If XP was awarded, capture it
+          if (result.xpAwarded) {
+            xpAwarded = result.xpAwarded;
+          }
+        }
+      }
+      
+      // Reload XP if it was awarded
+      if (xpAwarded) {
+        const { data: updatedXP, error: xpError } = await getUserXP(currentUser.id);
+        if (xpError) {
+          console.error('Error fetching updated XP:', xpError);
+        } else if (updatedXP) {
+          setUserXP(updatedXP);
+          // Show level up modal if user leveled up
+          if (xpAwarded.leveledUp) {
+            setLevelUpData({ level: xpAwarded.newLevel, xp: xpAwarded.totalXP });
+            setShowLevelUpModal(true);
+          }
+          // Trigger XP update event so ProfileModal and other components can refresh
+          window.dispatchEvent(new CustomEvent('xpUpdated', { detail: { xp: updatedXP } }));
+        }
+      }
+      
+      // Reload challenges to get updated progress (this ensures shared challenges are included)
+      const { data: updatedChallenges } = await getChallenges(currentUser.id);
+      if (updatedChallenges) {
+        setChallenges(updatedChallenges);
+        // Trigger a reload in ChallengeModal by dispatching a custom event
+        window.dispatchEvent(new CustomEvent('challengesUpdated'));
+      }
+    } catch (error) {
+      console.error('Error updating challenges for book:', error);
     }
   };
 
@@ -196,7 +301,8 @@ export function useGamification(currentUser, bookshelves) {
     setNewAchievement,
     loadGamificationData,
     checkAchievements,
-    handleBookFinished
+    handleBookFinished,
+    updateChallengesForBook
   };
 }
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Target, Plus, Calendar, Users, Share2, Trash2, Check, UserCheck, UserPlus, Trophy, BookOpen } from 'lucide-react';
-import { getChallenges, createChallenge, shareChallenge, deleteChallenge } from '../../services/gamificationService';
+import { getChallenges, createChallenge, shareChallenge, deleteChallenge, getChallengeUserProgress } from '../../services/gamificationService';
 import { getAllUsers } from '../../services/userService';
 import { getUserProfile } from '../../services/userService';
 
@@ -26,6 +26,8 @@ export default function ChallengeModal({
   const [selectedChallenge, setSelectedChallenge] = useState(null);
   const [users, setUsers] = useState([]);
   const [userProfiles, setUserProfiles] = useState({});
+  const [sharedUserProfiles, setSharedUserProfiles] = useState({}); // Profiles for users shared with challenges
+  const [challengeUserProgress, setChallengeUserProgress] = useState({}); // Progress per user per challenge
   const [selectedUserIds, setSelectedUserIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -43,6 +45,20 @@ export default function ChallengeModal({
     }
   }, [show, currentUser]);
 
+  // Listen for challenge updates from other parts of the app
+  useEffect(() => {
+    const handleChallengesUpdated = () => {
+      if (show && currentUser) {
+        loadChallenges();
+      }
+    };
+    
+    window.addEventListener('challengesUpdated', handleChallengesUpdated);
+    return () => {
+      window.removeEventListener('challengesUpdated', handleChallengesUpdated);
+    };
+  }, [show, currentUser]);
+
   const loadChallenges = async () => {
     if (!currentUser) return;
     setIsLoading(true);
@@ -52,6 +68,51 @@ export default function ChallengeModal({
         console.error('Error loading challenges:', error);
       } else {
         setChallenges(data || []);
+        
+        // Load profiles for all shared users across all challenges
+        const sharedUserIds = new Set();
+        (data || []).forEach(challenge => {
+          if (challenge.shared_with && Array.isArray(challenge.shared_with)) {
+            challenge.shared_with.forEach(userId => {
+              if (userId && userId !== currentUser.id) {
+                sharedUserIds.add(userId);
+              }
+            });
+          }
+        });
+        
+        // Load profiles for shared users and creator
+        const profiles = {};
+        const progressData = {};
+        
+        // Load profiles and progress for all challenges
+        for (const challenge of (data || [])) {
+          // Include creator in profiles
+          if (challenge.user_id && !sharedUserIds.has(challenge.user_id)) {
+            sharedUserIds.add(challenge.user_id);
+          }
+          
+          // Get progress for this challenge
+          const { data: progress } = await getChallengeUserProgress(challenge.id);
+          if (progress) {
+            progressData[challenge.id] = progress;
+          }
+        }
+        
+        // Load all user profiles
+        for (const userId of sharedUserIds) {
+          try {
+            const { data: profile } = await getUserProfile(userId);
+            if (profile) {
+              profiles[userId] = profile;
+            }
+          } catch (err) {
+            console.error(`Error loading profile for user ${userId}:`, err);
+          }
+        }
+        setSharedUserProfiles(profiles);
+        setChallengeUserProgress(progressData);
+        setChallengeUserProgress(progressData);
       }
     } catch (error) {
       console.error('Error loading challenges:', error);
@@ -94,6 +155,7 @@ export default function ChallengeModal({
     try {
       const challengeData = {
         challenge_name: challengeName,
+        challenge_type: 'reading', // Required field - default challenge type
         target_count: parseInt(targetCount),
         current_count: 0,
         start_date: startDate,
@@ -359,7 +421,7 @@ export default function ChallengeModal({
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <h3 className="text-lg font-bold text-gray-900">{challenge.challenge_name}</h3>
                           {challenge.is_completed && (
                             <Trophy className="w-5 h-5 text-yellow-600" />
@@ -367,6 +429,39 @@ export default function ChallengeModal({
                           {isActive && (
                             <span className="px-2 py-0.5 bg-indigo-600 text-white text-xs rounded-full">Active</span>
                           )}
+                          {/* All participants avatars (including creator) */}
+                          {(() => {
+                            // Get all participants (creator + shared users)
+                            const allParticipants = [
+                              challenge.user_id,
+                              ...(challenge.shared_with || [])
+                            ].filter((id, index, self) => self.indexOf(id) === index); // Remove duplicates
+                            
+                            return allParticipants.length > 0 && (
+                              <div className="flex items-center gap-1 ml-1">
+                                {allParticipants.slice(0, 5).map((userId) => {
+                                  const profile = sharedUserProfiles[userId];
+                                  const isCreator = userId === challenge.user_id;
+                                  return (
+                                    <div
+                                      key={userId}
+                                      className={`w-6 h-6 rounded-full flex items-center justify-center text-xs border-2 border-white shadow-sm ${
+                                        isCreator ? 'bg-indigo-200 ring-2 ring-indigo-400' : 'bg-gray-200'
+                                      }`}
+                                      title={isCreator ? `${profile?.name || 'Creator'}` : profile?.name || 'Participant'}
+                                    >
+                                      {profile?.avatar || '👤'}
+                                    </div>
+                                  );
+                                })}
+                                {allParticipants.length > 5 && (
+                                  <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs border-2 border-white shadow-sm text-gray-600">
+                                    +{allParticipants.length - 5}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                         {challenge.description && (
                           <p className="text-sm text-gray-600 mb-2">{challenge.description}</p>
@@ -406,24 +501,81 @@ export default function ChallengeModal({
                       )}
                     </div>
 
-                    {/* Progress Bar */}
-                    <div className="mb-2">
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="font-semibold text-gray-700">
-                          {challenge.current_count || 0} / {challenge.target_count} books
-                        </span>
-                        <span className="text-gray-600">{Math.round(progress)}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${
-                            challenge.is_completed
-                              ? 'bg-green-600'
-                              : 'bg-indigo-600'
-                          }`}
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
+                    {/* Progress Bars - One for each participant */}
+                    <div className="mb-2 space-y-2">
+                      {(() => {
+                        // Get all participants (creator + shared users)
+                        const allParticipants = [
+                          challenge.user_id,
+                          ...(challenge.shared_with || [])
+                        ].filter((id, index, self) => self.indexOf(id) === index); // Remove duplicates
+                        
+                        const userProgress = challengeUserProgress[challenge.id] || {};
+                        
+                        return allParticipants.map((userId) => {
+                          const profile = sharedUserProfiles[userId];
+                          const userName = profile?.name || 'Unknown User';
+                          const userProgressCount = userProgress[userId] || 0;
+                          const userProgressPercent = Math.min(100, (userProgressCount / challenge.target_count) * 100);
+                          const isCreator = userId === challenge.user_id;
+                          const isCurrentUser = userId === currentUser?.id;
+                          const isCompleted = userProgressCount >= challenge.target_count;
+                          
+                          return (
+                            <div key={userId} className="space-y-1">
+                              <div className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-lg">{profile?.avatar || '👤'}</span>
+                                  <span className={`font-medium ${isCurrentUser ? 'text-indigo-600' : 'text-gray-700'}`}>
+                                    {isCurrentUser ? 'You' : userName}
+                                    {isCreator && <span className="ml-1 text-indigo-500">(Creator)</span>}
+                                  </span>
+                                </div>
+                                {isCompleted ? (
+                                  <span className="text-green-600 font-semibold flex items-center gap-1">
+                                    <Trophy className="w-3 h-3" />
+                                    Completed
+                                    {challenge.reward_xp > 0 && (
+                                      <span className="ml-1 px-1.5 py-0.5 bg-yellow-500 text-white rounded-full text-xs font-bold">
+                                        +{challenge.reward_xp} XP
+                                      </span>
+                                    )}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-600">
+                                    {userProgressCount} / {challenge.target_count}
+                                  </span>
+                                )}
+                              </div>
+                              {!isCompleted && (
+                                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${
+                                      isCurrentUser
+                                        ? 'bg-indigo-600'
+                                        : 'bg-blue-400'
+                                    }`}
+                                    style={{ width: `${userProgressPercent}%` }}
+                                  />
+                                </div>
+                              )}
+                              {isCompleted && (
+                                <div className="w-full bg-green-100 rounded-lg p-2 border border-green-300">
+                                  <div className="flex items-center gap-2 text-green-700 text-xs font-medium">
+                                    <Check className="w-4 h-4" />
+                                    <span>Challenge completed! 🎉</span>
+                                    {challenge.reward_xp > 0 && (
+                                      <span className="ml-2 px-2 py-0.5 bg-yellow-500 text-white rounded-full font-bold">
+                                        +{challenge.reward_xp} XP
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
                 );
