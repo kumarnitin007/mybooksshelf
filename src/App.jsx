@@ -19,6 +19,8 @@ import AddBookModal from './components/modals/AddBookModal';
 import BookDetailsModal from './components/modals/BookDetailsModal';
 import LoginModal from './components/modals/LoginModal';
 import ProfileModal from './components/modals/ProfileModal';
+import ChallengeModal from './components/modals/ChallengeModal';
+import RewardsModal from './components/modals/RewardsModal';
 import Header from './components/layout/Header';
 import UserStatsSection from './components/layout/UserStatsSection';
 import BookshelfDisplay from './components/bookshelf/BookshelfDisplay';
@@ -189,8 +191,9 @@ export default function App() {
     handleBookFinished
   } = gamification;
   
-  // Unused modal states (kept for future features)
+  // Modal states
   const [showChallengeModal, setShowChallengeModal] = useState(false);
+  const [showRewardsModal, setShowRewardsModal] = useState(false);
   const [showQuizModal, setShowQuizModal] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
@@ -2068,6 +2071,8 @@ export default function App() {
         onShowAIRecommendations={() => {
           setShowAIRecommendations(true);
         }}
+        onShowChallenges={() => setShowChallengeModal(true)}
+        onShowRewards={() => setShowRewardsModal(true)}
       />
 
       {/* User Stats Section */}
@@ -2710,6 +2715,27 @@ export default function App() {
           setShowAchievementModal(false);
           setNewAchievement(null);
         }}
+      />
+
+      {/* Challenge Modal */}
+      <ChallengeModal
+        show={showChallengeModal}
+        currentUser={currentUser}
+        onClose={() => setShowChallengeModal(false)}
+        onChallengeCreated={async () => {
+          // Reload gamification data when challenge is created
+          if (loadGamificationData) {
+            await loadGamificationData();
+          }
+        }}
+      />
+
+      {/* Rewards Modal */}
+      <RewardsModal
+        show={showRewardsModal}
+        currentUser={currentUser}
+        userRewards={userRewards}
+        onClose={() => setShowRewardsModal(false)}
       />
 
     </div>

@@ -99,22 +99,22 @@ export function useGamification(currentUser, bookshelves) {
         }
       }
 
-      // Streak achievements
+      // Streak achievements (now based on weeks)
       if (userStreak) {
-        if (userStreak.current_streak === 7) {
-          const result = await awardAchievement(userId, 'streak_7', 'Week Warrior', '🔥', '7 day reading streak!');
+        if (userStreak.current_streak === 1) {
+          const result = await awardAchievement(userId, 'streak_1', 'Week Warrior', '🔥', '1 week reading streak!');
           if (result.data && !result.alreadyEarned) {
             setNewAchievement(result.data);
             setShowAchievementModal(true);
-            await addXP(userId, 75, '7 day streak achievement');
+            await addXP(userId, 75, '1 week streak achievement');
           }
         }
-        if (userStreak.current_streak === 30) {
-          const result = await awardAchievement(userId, 'streak_30', 'Monthly Master', '🌟', '30 day reading streak!');
+        if (userStreak.current_streak === 4) {
+          const result = await awardAchievement(userId, 'streak_4', 'Monthly Master', '🌟', '4 week reading streak!');
           if (result.data && !result.alreadyEarned) {
             setNewAchievement(result.data);
             setShowAchievementModal(true);
-            await addXP(userId, 200, '30 day streak achievement');
+            await addXP(userId, 200, '4 week streak achievement');
           }
         }
       }

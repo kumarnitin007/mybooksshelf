@@ -202,6 +202,26 @@ export const getUserStreak = async (userId) => {
   }
 };
 
+// Helper function to get the week identifier for a given date
+// Returns a string in format "YYYY-WW" representing the week
+// Uses ISO week calculation (week starts on Monday)
+const getWeekIdentifier = (dateStr) => {
+  const date = new Date(dateStr + 'T00:00:00');
+  const year = date.getFullYear();
+  
+  // Get the date of the Monday of this week
+  const dayOfWeek = date.getDay() || 7; // Convert Sunday (0) to 7
+  const monday = new Date(date);
+  monday.setDate(date.getDate() - dayOfWeek + 1);
+  
+  // Calculate week number: days since Jan 1, divided by 7
+  const startOfYear = new Date(year, 0, 1);
+  const daysSinceStart = Math.floor((monday - startOfYear) / (1000 * 60 * 60 * 24));
+  const weekNumber = Math.floor(daysSinceStart / 7) + 1;
+  
+  return `${year}-W${String(weekNumber).padStart(2, '0')}`;
+};
+
 export const updateReadingStreak = async (userId, readingDate) => {
   try {
     const { data: streakData, error: fetchError } = await getUserStreak(userId);
@@ -220,25 +240,36 @@ export const updateReadingStreak = async (userId, readingDate) => {
       // First reading
       newStreak = 1;
     } else {
-      const lastDateObj = new Date(lastDate);
-      const readingDateObj = new Date(readingDateStr);
-      const daysDiff = Math.floor((readingDateObj - lastDateObj) / (1000 * 60 * 60 * 24));
-
-      if (daysDiff === 0) {
-        // Same day, no change
+      const lastWeek = getWeekIdentifier(lastDate);
+      const readingWeek = getWeekIdentifier(readingDateStr);
+      
+      if (lastWeek === readingWeek) {
+        // Same week, no change to streak (already counted this week)
         return { data: streak, error: null };
-      } else if (daysDiff === 1) {
-        // Consecutive day
-        newStreak = (streak.current_streak || 0) + 1;
-        usedFreeze = false; // Reset freeze on successful day
-      } else if (daysDiff === 2 && !usedFreeze) {
-        // One day missed, use freeze
-        newStreak = (streak.current_streak || 0) + 1;
-        usedFreeze = true;
       } else {
-        // Streak broken
-        newStreak = 1;
-        usedFreeze = false;
+        // Different weeks - check if consecutive or within grace period
+        const lastDateObj = new Date(lastDate + 'T00:00:00');
+        const readingDateObj = new Date(readingDateStr + 'T00:00:00');
+        const daysDiff = Math.floor((readingDateObj - lastDateObj) / (1000 * 60 * 60 * 24));
+        
+        // For weekly streaks:
+        // - If within 1-13 days and different weeks, it's consecutive (with grace period)
+        // - If 14-20 days and freeze available, use freeze
+        // - If more than 20 days, streak is broken
+        
+        if (daysDiff >= 1 && daysDiff <= 13) {
+          // Consecutive week (within 1-13 days, different weeks)
+          newStreak = (streak.current_streak || 0) + 1;
+          usedFreeze = false; // Reset freeze on successful week
+        } else if (daysDiff >= 14 && daysDiff <= 20 && !usedFreeze) {
+          // One week missed (14-20 days), use freeze
+          newStreak = (streak.current_streak || 0) + 1;
+          usedFreeze = true;
+        } else {
+          // Streak broken (more than 20 days gap or freeze already used)
+          newStreak = 1;
+          usedFreeze = false;
+        }
       }
     }
 
@@ -372,13 +403,31 @@ export const unlockReward = async (userId, rewardType, rewardName, rewardValue) 
 // Reading Challenges
 export const getChallenges = async (userId) => {
   try {
-    const { data, error } = await supabase
+    // Get challenges created by user
+    const { data: myChallenges, error: myError } = await supabase
       .from('bk_reading_challenges')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    return { data: data || [], error };
+    if (myError) throw myError;
+
+    // Get challenges shared with user
+    const { data: sharedChallenges, error: sharedError } = await supabase
+      .from('bk_reading_challenges')
+      .select('*')
+      .contains('shared_with', [userId])
+      .order('created_at', { ascending: false });
+
+    if (sharedError) throw sharedError;
+
+    // Combine and deduplicate
+    const allChallenges = [...(myChallenges || []), ...(sharedChallenges || [])];
+    const uniqueChallenges = Array.from(
+      new Map(allChallenges.map(c => [c.id, c])).values()
+    );
+
+    return { data: uniqueChallenges, error: null };
   } catch (error) {
     console.error('Error getting challenges:', error);
     return { data: [], error };
@@ -391,6 +440,7 @@ export const createChallenge = async (userId, challengeData) => {
       .from('bk_reading_challenges')
       .insert([{
         user_id: userId,
+        shared_with: challengeData.sharedWith || [],
         ...challengeData
       }])
       .select()
@@ -400,6 +450,38 @@ export const createChallenge = async (userId, challengeData) => {
   } catch (error) {
     console.error('Error creating challenge:', error);
     return { data: null, error };
+  }
+};
+
+export const shareChallenge = async (challengeId, userIds) => {
+  try {
+    const { data, error } = await supabase
+      .from('bk_reading_challenges')
+      .update({
+        shared_with: userIds || []
+      })
+      .eq('id', challengeId)
+      .select()
+      .single();
+
+    return { data, error };
+  } catch (error) {
+    console.error('Error sharing challenge:', error);
+    return { data: null, error };
+  }
+};
+
+export const deleteChallenge = async (challengeId) => {
+  try {
+    const { error } = await supabase
+      .from('bk_reading_challenges')
+      .delete()
+      .eq('id', challengeId);
+
+    return { error };
+  } catch (error) {
+    console.error('Error deleting challenge:', error);
+    return { error };
   }
 };
 

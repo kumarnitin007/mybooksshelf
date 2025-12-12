@@ -77,7 +77,7 @@ export default function UserStatsSection({
                   <div className="text-2xl">🔥</div>
                   <div>
                     <div className="text-lg sm:text-xl font-bold text-gray-900">
-                      {userStreak.current_streak} day{userStreak.current_streak !== 1 ? 's' : ''}
+                      {userStreak.current_streak} week{userStreak.current_streak !== 1 ? 's' : ''}
                     </div>
                     <div className="text-xs text-gray-600">Reading Streak</div>
                   </div>

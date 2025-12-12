@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Info, Sparkles, Globe } from 'lucide-react';
+import { User, Info, Sparkles, Globe, Target, Trophy } from 'lucide-react';
 import { ANIMAL_THEMES } from '../../constants/animalThemes';
 
 /**
@@ -14,6 +14,8 @@ import { ANIMAL_THEMES } from '../../constants/animalThemes';
  * @param {function} onShowProfile - Callback to show profile modal
  * @param {function} onShowPublicRecommendations - Callback to show public recommendations modal
  * @param {function} onShowAIRecommendations - Callback to show AI recommendations modal
+ * @param {function} onShowChallenges - Callback to show challenges modal
+ * @param {function} onShowRewards - Callback to show rewards modal
  */
 export default function Header({
   currentUser,
@@ -24,7 +26,9 @@ export default function Header({
   onShowAbout,
   onShowProfile,
   onShowPublicRecommendations,
-  onShowAIRecommendations
+  onShowAIRecommendations,
+  onShowChallenges,
+  onShowRewards
 }) {
   const theme = activeShelf ? ANIMAL_THEMES[activeShelf.animal] || ANIMAL_THEMES.cat : ANIMAL_THEMES.cat;
 
@@ -98,6 +102,26 @@ export default function Header({
               <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
               <span className="hidden sm:inline">AI Recommendations</span>
             </button>
+            {currentUser && currentUser.username !== 'Default User' && (
+              <>
+                <button
+                  onClick={onShowChallenges}
+                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg sm:rounded-xl hover:from-orange-700 hover:to-red-700 transition-all shadow-md text-xs sm:text-base"
+                  title="Reading Challenges"
+                >
+                  <Target className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="hidden sm:inline">Challenges</span>
+                </button>
+                <button
+                  onClick={onShowRewards}
+                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-yellow-600 to-amber-600 text-white rounded-lg sm:rounded-xl hover:from-yellow-700 hover:to-amber-700 transition-all shadow-md text-xs sm:text-base"
+                  title="Virtual Rewards"
+                >
+                  <Trophy className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="hidden sm:inline">Rewards</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

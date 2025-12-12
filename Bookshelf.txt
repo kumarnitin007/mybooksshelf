@@ -1,0 +1,71 @@
+Build an library bookshelf app for the books read by user using expo react
+1. ability to enter the name of book that user read. or an ability to load a photo that can be used to search up the book details
+2. entered book is added to my virtual book shelf and displayed the book as real image of the book which user can click to get details later.
+3. Every book should allow user to enter their fav character, genre, scene summary, start date, finish date, rating, fetch the screen cover and author and other details that you can from internet.
+4. have an ability to filter using authors and other relevant fields like rating etc..
+5. Also have an ability to recommend books based on previous read books and ratings for the suggested next to read books
+6. if user selects one or two star rating, show an option to enter least fav part in book, also don't use this book to provide future recommendations.
+7. recommendations should be based on the user provided ratings
+8. Fetch a image of book also when fetching details and save it too.
+9. have a section for the user of the app, in this section user should be allowed to enter their target of number of books to read in this month.
+10. based on users inputs show the count of remaining books pending to be read.
+11. max 10 books are allowed in each bookshelf while displaying, once bookshelf is full then move it to a new tab called completed books shelf.
+12. give an ability to user to assign an animal to each bookshelf and customize the view of bookshelf based on animals chosen
+13. make the look and feel of the app more cute and vibrant and make books look more realistic.
+15. 
+
+
+
+
+-------------------------------------------------------------------------------------------------------------
+
+Here are the features currently supported in the app:
+Book Management:
+1. Add books by entering the book title and/or author (this is mainly  search)
+2. Automatically fetch book details including author, description, and cover image from the internet. if not found then display the close match option 
+3. Allow user to add a new book if it is not part of serach, just make sure to verify specially if the book being added not existing as per your search.
+4. Display books as realistic book covers or spines (display mode to be selected to each bookshelf) with images on a virtual bookshelf. Click any book to view detailed information.
+
+Book Details & Tracking:
+5. Enter and save favorite character for each book
+6. Add scene summary, memorable moments, review.
+7. Record start date and finish date for reading tracking
+8. Rate books using a 5-star rating system
+9. For 1-2 star ratings, show user a new box to add least favorite part of the book causing this rating
+10. Low-rated books (1-2 stars) are excluded from future recommendation algorithms
+Search & Filtering:
+11. Search books by title or author name
+12. Filter by rating levels (5-star, 4+ stars)
+13. Filter by specific authors
+14. View all books or apply custom filters
+AI-Powered Recommendations:
+15. Generate personalized book recommendations based on your reading history
+16. Recommendations intelligently consider your ratings and preferences
+17. Receive 5 tailored suggestions with explanations
+User Profile & Goals:
+18. Create user profile section
+19. Set monthly reading target (number of books to read this month)
+20. Track progress with automatic count of remaining books to reach your goal
+21. Visual display of books read vs. books remaining
+Bookshelf Organization:
+22. Maximum 10 books displayed per active bookshelf
+23. Once a bookshelf reaches 10 books, it automatically moves to "Completed Bookshelves" tab
+24. Organize reading history across multiple shelves
+Customization:
+25. Assign animal themes to each bookshelf (customize the look)
+26. Personalized bookshelf views based on chosen animal
+27. Cute, vibrant, and engaging visual design
+28. Realistic book cover displays with actual cover images
+Data Persistence:
+29. All data saved locally and persists across sessions
+30. Books, ratings, progress, and preferences automatically saved
+
+31. Create Supabase backend tables to manage and persist this data. All tables of this app should start with BK_ prefix.
+32. Introduce user management in the app so users can have their own data.
+33 Introduce a shared Bookshelf that will be shared with other users on the app. Any book added on shared bookshelf will be shown on shared bookshelf of all users.
+34. Have an About popup for the app 
+
+
+add user management, 
+
+
