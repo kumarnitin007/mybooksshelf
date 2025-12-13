@@ -371,37 +371,216 @@ export const getUserRewards = async (userId) => {
   }
 };
 
-export const unlockReward = async (userId, rewardType, rewardName, rewardValue) => {
+export const unlockReward = async (userId, rewardType, rewardName, rewardValue, rewardEmoji = null, rewardDescription = null) => {
   try {
     // Check if already unlocked
-    const { data: existing } = await supabase
+    const { data: existing, error: selectError } = await supabase
       .from('bk_user_rewards')
       .select('id')
       .eq('user_id', userId)
       .eq('reward_type', rewardType)
       .eq('reward_name', rewardName)
-      .single();
+      .maybeSingle();
 
+    // If we found an existing reward, return it
     if (existing) {
       return { data: existing, error: null, alreadyUnlocked: true };
     }
 
+    // If there was an error other than "not found", log it but continue
+    if (selectError && selectError.code !== 'PGRST116') {
+      console.warn('Error checking for existing reward:', selectError);
+    }
+
+    // Build insert object, only including fields that are provided
+    const insertData = {
+      user_id: userId,
+      reward_type: rewardType,
+      reward_name: rewardName,
+      reward_value: rewardValue,
+      unlocked_at: new Date().toISOString()
+    };
+    
+    // Only add optional fields if they're provided
+    if (rewardEmoji) {
+      insertData.reward_emoji = rewardEmoji;
+    }
+    if (rewardDescription) {
+      insertData.reward_description = rewardDescription;
+    }
+
     const { data, error } = await supabase
       .from('bk_user_rewards')
-      .insert([{
-        user_id: userId,
-        reward_type: rewardType,
-        reward_name: rewardName,
-        reward_value: rewardValue
-      }])
+      .insert([insertData])
       .select()
       .single();
 
-    if (error) throw error;
+    // Handle duplicate key error (409 conflict) - reward was already created
+    if (error) {
+      // If it's a duplicate key error, try to fetch the existing reward
+      if (error.code === '23505' || error.message?.includes('duplicate key')) {
+        const { data: existingReward } = await supabase
+          .from('bk_user_rewards')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('reward_type', rewardType)
+          .eq('reward_name', rewardName)
+          .maybeSingle();
+        
+        if (existingReward) {
+          return { data: existingReward, error: null, alreadyUnlocked: true };
+        }
+      }
+      throw error;
+    }
+    
     return { data, error: null, alreadyUnlocked: false };
   } catch (error) {
     console.error('Error unlocking reward:', error);
     return { data: null, error };
+  }
+};
+
+/**
+ * Check and award virtual rewards based on milestones
+ * @param {string} userId - User ID
+ * @param {object} stats - User stats (totalBooks, currentLevel, currentStreak, completedChallenges, etc.)
+ * @returns {object} Array of newly unlocked rewards
+ */
+export const checkAndAwardVirtualRewards = async (userId, stats) => {
+  const { totalBooks = 0, finishedBooks = 0, currentLevel = 1, currentStreak = 0, booksThisMonth = 0, completedChallenges = 0 } = stats;
+  const newlyUnlocked = [];
+
+  try {
+    // Book count milestones - Badges
+    const bookMilestones = [
+      { count: 1, name: 'First Steps', emoji: '🌱', description: 'Read your first book!', type: 'badge' },
+      { count: 5, name: 'Getting Started', emoji: '📖', description: 'Read 5 books!', type: 'badge' },
+      { count: 10, name: 'Bookworm', emoji: '📚', description: 'Read 10 books!', type: 'badge' },
+      { count: 25, name: 'Avid Reader', emoji: '🌟', description: 'Read 25 books!', type: 'badge' },
+      { count: 50, name: 'Book Master', emoji: '👑', description: 'Read 50 books!', type: 'badge' },
+      { count: 100, name: 'Legendary Reader', emoji: '🏆', description: 'Read 100 books!', type: 'badge' },
+      { count: 200, name: 'Reading Champion', emoji: '💎', description: 'Read 200 books!', type: 'badge' }
+    ];
+
+    for (const milestone of bookMilestones) {
+      if (finishedBooks >= milestone.count) {
+        const result = await unlockReward(
+          userId,
+          milestone.type,
+          milestone.name,
+          milestone.count,
+          milestone.emoji,
+          milestone.description
+        );
+        if (result.data && !result.alreadyUnlocked) {
+          newlyUnlocked.push(result.data);
+        }
+      }
+    }
+
+    // Level milestones - Titles
+    const levelMilestones = [
+      { level: 5, name: 'Level 5 Reader', emoji: '⭐', description: 'Reached Level 5!', type: 'title' },
+      { level: 10, name: 'Level 10 Master', emoji: '✨', description: 'Reached Level 10!', type: 'title' },
+      { level: 15, name: 'Level 15 Expert', emoji: '💫', description: 'Reached Level 15!', type: 'title' },
+      { level: 20, name: 'Level 20 Legend', emoji: '🌟', description: 'Reached Level 20!', type: 'title' },
+      { level: 25, name: 'Level 25 Hero', emoji: '🔥', description: 'Reached Level 25!', type: 'title' }
+    ];
+
+    for (const milestone of levelMilestones) {
+      if (currentLevel >= milestone.level) {
+        const result = await unlockReward(
+          userId,
+          milestone.type,
+          milestone.name,
+          milestone.level,
+          milestone.emoji,
+          milestone.description
+        );
+        if (result.data && !result.alreadyUnlocked) {
+          newlyUnlocked.push(result.data);
+        }
+      }
+    }
+
+    // Streak milestones - Achievements
+    const streakMilestones = [
+      { streak: 2, name: 'Two Week Warrior', emoji: '🔥', description: '2 week reading streak!', type: 'achievement' },
+      { streak: 4, name: 'Monthly Master', emoji: '🌟', description: '4 week reading streak!', type: 'achievement' },
+      { streak: 8, name: 'Two Month Champion', emoji: '💪', description: '8 week reading streak!', type: 'achievement' },
+      { streak: 12, name: 'Quarter Year Hero', emoji: '🏅', description: '12 week reading streak!', type: 'achievement' }
+    ];
+
+    for (const milestone of streakMilestones) {
+      if (currentStreak >= milestone.streak) {
+        const result = await unlockReward(
+          userId,
+          milestone.type,
+          milestone.name,
+          milestone.streak,
+          milestone.emoji,
+          milestone.description
+        );
+        if (result.data && !result.alreadyUnlocked) {
+          newlyUnlocked.push(result.data);
+        }
+      }
+    }
+
+    // Monthly reading milestones
+    const monthlyMilestones = [
+      { count: 3, name: 'Monthly Reader', emoji: '📅', description: 'Read 3 books in a month!', type: 'milestone' },
+      { count: 5, name: 'Speed Reader', emoji: '⚡', description: 'Read 5 books in a month!', type: 'milestone' },
+      { count: 10, name: 'Monthly Bookworm', emoji: '🚀', description: 'Read 10 books in a month!', type: 'milestone' }
+    ];
+
+    for (const milestone of monthlyMilestones) {
+      if (booksThisMonth >= milestone.count) {
+        const result = await unlockReward(
+          userId,
+          milestone.type,
+          milestone.name,
+          milestone.count,
+          milestone.emoji,
+          milestone.description
+        );
+        if (result.data && !result.alreadyUnlocked) {
+          newlyUnlocked.push(result.data);
+        }
+      }
+    }
+
+    // Challenge completion milestones - Badges
+    const challengeMilestones = [
+      { count: 1, name: 'Challenge Starter', emoji: '🎯', description: 'Completed your first challenge!', type: 'badge' },
+      { count: 3, name: 'Challenge Enthusiast', emoji: '🏅', description: 'Completed 3 challenges!', type: 'badge' },
+      { count: 5, name: 'Challenge Master', emoji: '👑', description: 'Completed 5 challenges!', type: 'badge' },
+      { count: 10, name: 'Challenge Champion', emoji: '🏆', description: 'Completed 10 challenges!', type: 'badge' },
+      { count: 20, name: 'Challenge Legend', emoji: '⭐', description: 'Completed 20 challenges!', type: 'badge' },
+      { count: 50, name: 'Ultimate Challenger', emoji: '💎', description: 'Completed 50 challenges!', type: 'badge' }
+    ];
+
+    for (const milestone of challengeMilestones) {
+      if (completedChallenges >= milestone.count) {
+        const result = await unlockReward(
+          userId,
+          milestone.type,
+          milestone.name,
+          milestone.count,
+          milestone.emoji,
+          milestone.description
+        );
+        if (result.data && !result.alreadyUnlocked) {
+          newlyUnlocked.push(result.data);
+        }
+      }
+    }
+
+    return { data: newlyUnlocked, error: null };
+  } catch (error) {
+    console.error('Error checking virtual rewards:', error);
+    return { data: [], error };
   }
 };
 
@@ -520,7 +699,14 @@ export const createChallenge = async (userId, challengeData) => {
         end_date: challengeData.end_date,
         reward_xp: challengeData.reward_xp || 0,
         description: challengeData.description || null,
-        is_completed: challengeData.is_completed || false
+        is_completed: challengeData.is_completed || false,
+        // Optional condition fields
+        condition_genre: challengeData.condition_genre || null,
+        condition_min_rating: challengeData.condition_min_rating || null,
+        condition_author: challengeData.condition_author || null,
+        condition_format: challengeData.condition_format || null,
+        condition_year_min: challengeData.condition_year_min || null,
+        condition_year_max: challengeData.condition_year_max || null
       }])
       .select()
       .single();
@@ -586,6 +772,32 @@ export const deleteChallenge = async (challengeId) => {
 
 export const updateChallengeProgress = async (challengeId, bookId, userId) => {
   try {
+    // Get challenge details first to check conditions
+    const { data: challenge } = await supabase
+      .from('bk_reading_challenges')
+      .select('*')
+      .eq('id', challengeId)
+      .single();
+
+    if (!challenge) {
+      return { data: null, error: { message: 'Challenge not found' } };
+    }
+
+    // Get book details to check against conditions
+    const { data: book } = await supabase
+      .from('bk_books')
+      .select('*')
+      .eq('id', bookId)
+      .single();
+
+    if (!book) {
+      return { data: null, error: { message: 'Book not found' } };
+    }
+
+    // Check if book matches challenge conditions
+    if (!bookMatchesChallengeConditions(book, challenge)) {
+      return { data: null, error: null, conditionNotMet: true };
+    }
     
     // Check if book is already linked to this challenge for this user
     // Try with user_id first, fallback to old method if column doesn't exist
@@ -693,13 +905,7 @@ export const updateChallengeProgress = async (challengeId, bookId, userId) => {
       userProgress = count || 0;
     }
 
-    // Get challenge details
-    const { data: challenge } = await supabase
-      .from('bk_reading_challenges')
-      .select('*')
-      .eq('id', challengeId)
-      .single();
-
+    // Challenge details already retrieved at the beginning of the function
     if (challenge) {
       const isCompleted = (userProgress || 0) >= challenge.target_count;
 

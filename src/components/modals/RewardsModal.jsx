@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Trophy, Star, Gift, Award, Sparkles, Lock, Unlock } from 'lucide-react';
 import { getUserRewards } from '../../services/gamificationService';
+import RewardUnlockedModal from './RewardUnlockedModal';
 
 /**
  * RewardsModal Component
@@ -19,13 +20,17 @@ export default function RewardsModal({
   currentUser,
   userRewards = [],
   userXP = null,
+  userStreak = null,
   challenges = [],
   recentAchievements = [],
+  bookshelves = [],
   onClose
 }) {
   const [rewards, setRewards] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [filter, setFilter] = useState('all'); // all, unlocked, locked
+  const [showRewardAnimation, setShowRewardAnimation] = useState(false);
+  const [selectedReward, setSelectedReward] = useState(null);
 
   useEffect(() => {
     if (show && currentUser) {
@@ -77,9 +82,165 @@ export default function RewardsModal({
     return acc;
   }, {});
 
+  // Calculate upcoming rewards based on current stats
+  const getUpcomingRewards = () => {
+    if (!userXP || !bookshelves) return [];
+    
+    const allBooks = bookshelves.flatMap(shelf => shelf.books || []);
+    const finishedBooks = allBooks.filter(b => b.finishDate).length;
+    const currentLevel = userXP.current_level || 1;
+    const currentStreak = userStreak?.current_streak || 0;
+    
+    // Count completed challenges
+    const completedChallenges = challenges.filter(c => {
+      const isCompleted = c.is_completed || (c.current_count >= c.target_count);
+      const isCreator = currentUser && String(c.user_id) === String(currentUser.id);
+      let isParticipant = false;
+      if (c.shared_with) {
+        let sharedArray = c.shared_with;
+        if (typeof sharedArray === 'string') {
+          try {
+            sharedArray = JSON.parse(sharedArray);
+          } catch (e) {
+            if (sharedArray.includes(',')) {
+              sharedArray = sharedArray.split(',').map(id => id.trim());
+            } else {
+              sharedArray = [sharedArray];
+            }
+          }
+        }
+        if (Array.isArray(sharedArray) && currentUser) {
+          isParticipant = sharedArray.map(id => String(id)).includes(String(currentUser.id));
+        }
+      }
+      return isCompleted && (isCreator || isParticipant);
+    }).length;
+    
+    const upcoming = [];
+    
+    // Book milestones
+    const bookMilestones = [1, 5, 10, 25, 50, 100, 200];
+    const nextBookMilestone = bookMilestones.find(m => m > finishedBooks);
+    if (nextBookMilestone) {
+      const progress = (finishedBooks / nextBookMilestone * 100).toFixed(0);
+      upcoming.push({
+        type: 'badge',
+        name: getBookMilestoneName(nextBookMilestone),
+        emoji: getBookMilestoneEmoji(nextBookMilestone),
+        current: finishedBooks,
+        target: nextBookMilestone,
+        progress: Math.min(100, progress),
+        description: `Read ${nextBookMilestone} books to unlock this badge!`
+      });
+    }
+    
+    // Level milestones
+    const levelMilestones = [5, 10, 15, 20, 25];
+    const nextLevelMilestone = levelMilestones.find(l => l > currentLevel);
+    if (nextLevelMilestone) {
+      const progress = (currentLevel / nextLevelMilestone * 100).toFixed(0);
+      upcoming.push({
+        type: 'title',
+        name: `Level ${nextLevelMilestone} Reader`,
+        emoji: '⭐',
+        current: currentLevel,
+        target: nextLevelMilestone,
+        progress: Math.min(100, progress),
+        description: `Reach Level ${nextLevelMilestone} to unlock this title!`
+      });
+    }
+    
+    // Streak milestones
+    const streakMilestones = [2, 4, 8, 12];
+    const nextStreakMilestone = streakMilestones.find(s => s > currentStreak);
+    if (nextStreakMilestone) {
+      const progress = (currentStreak / nextStreakMilestone * 100).toFixed(0);
+      upcoming.push({
+        type: 'achievement',
+        name: `${nextStreakMilestone} Week Streak`,
+        emoji: '🔥',
+        current: currentStreak,
+        target: nextStreakMilestone,
+        progress: Math.min(100, progress),
+        description: `Maintain a ${nextStreakMilestone}-week reading streak!`
+      });
+    }
+    
+    // Challenge milestones
+    const challengeMilestones = [1, 3, 5, 10, 20, 50];
+    const nextChallengeMilestone = challengeMilestones.find(c => c > completedChallenges);
+    if (nextChallengeMilestone) {
+      const progress = (completedChallenges / nextChallengeMilestone * 100).toFixed(0);
+      upcoming.push({
+        type: 'badge',
+        name: getChallengeMilestoneName(nextChallengeMilestone),
+        emoji: getChallengeMilestoneEmoji(nextChallengeMilestone),
+        current: completedChallenges,
+        target: nextChallengeMilestone,
+        progress: Math.min(100, progress),
+        description: `Complete ${nextChallengeMilestone} challenges to unlock this badge!`
+      });
+    }
+    
+    return upcoming.slice(0, 3); // Show top 3 upcoming
+  };
+
+  const getBookMilestoneName = (count) => {
+    const names = {
+      1: 'First Steps',
+      5: 'Getting Started',
+      10: 'Bookworm',
+      25: 'Avid Reader',
+      50: 'Book Master',
+      100: 'Legendary Reader',
+      200: 'Reading Champion'
+    };
+    return names[count] || `Read ${count} Books`;
+  };
+
+  const getBookMilestoneEmoji = (count) => {
+    const emojis = {
+      1: '🌱',
+      5: '📖',
+      10: '📚',
+      25: '🌟',
+      50: '👑',
+      100: '🏆',
+      200: '💎'
+    };
+    return emojis[count] || '📚';
+  };
+
+  const getChallengeMilestoneName = (count) => {
+    const names = {
+      1: 'Challenge Starter',
+      3: 'Challenge Enthusiast',
+      5: 'Challenge Master',
+      10: 'Challenge Champion',
+      20: 'Challenge Legend',
+      50: 'Ultimate Challenger'
+    };
+    return names[count] || `Complete ${count} Challenges`;
+  };
+
+  const getChallengeMilestoneEmoji = (count) => {
+    const emojis = {
+      1: '🎯',
+      3: '🏅',
+      5: '👑',
+      10: '🏆',
+      20: '⭐',
+      50: '💎'
+    };
+    return emojis[count] || '🎯';
+  };
+
+  const upcomingRewards = getUpcomingRewards();
+
   if (!show) return null;
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
@@ -129,6 +290,42 @@ export default function RewardsModal({
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Upcoming Rewards Section */}
+          {upcomingRewards.length > 0 && (
+            <div className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 border-2 border-green-300">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-green-600" />
+                Next Upcoming Rewards
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {upcomingRewards.map((upcoming, idx) => {
+                  const typeInfo = getRewardTypeInfo(upcoming.type);
+                  return (
+                    <div key={idx} className="bg-white rounded-lg p-4 border-2 border-green-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-2xl">{upcoming.emoji}</span>
+                        <h4 className="font-bold text-gray-900 text-sm">{upcoming.name}</h4>
+                      </div>
+                      <p className="text-xs text-gray-600 mb-3">{upcoming.description}</p>
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs text-gray-600">
+                          <span>Progress: {upcoming.current} / {upcoming.target}</span>
+                          <span>{upcoming.progress}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-green-500 to-emerald-500 rounded-full transition-all"
+                            style={{ width: `${upcoming.progress}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -237,40 +434,56 @@ export default function RewardsModal({
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {typeRewards.map((reward) => {
                         const isUnlocked = !!reward.unlocked_at;
+                        const handleRewardClick = () => {
+                          if (isUnlocked) {
+                            setSelectedReward(reward);
+                            setShowRewardAnimation(true);
+                          }
+                        };
                         return (
                           <div
                             key={reward.id}
+                            onClick={handleRewardClick}
                             className={`rounded-lg border-2 p-4 transition-all ${
                               isUnlocked
-                                ? `${typeInfo.bgColor} ${typeInfo.borderColor} border-2`
-                                : 'bg-gray-100 border-gray-300 opacity-60'
+                                ? `${typeInfo.bgColor} ${typeInfo.borderColor} border-2 cursor-pointer hover:scale-105 hover:shadow-lg`
+                                : 'bg-gray-100 border-gray-300 opacity-60 cursor-not-allowed'
                             }`}
+                            title={isUnlocked ? 'Click to see celebration!' : 'Locked - Keep reading to unlock!'}
                           >
                             <div className="flex items-start justify-between mb-2">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-1">
+                                <span className="text-2xl">{reward.reward_emoji || '🎁'}</span>
+                                <div className="flex-1">
+                                  <h4 className={`font-bold ${isUnlocked ? 'text-gray-900' : 'text-gray-500'}`}>
+                                    {reward.reward_name || 'Unnamed Reward'}
+                                  </h4>
+                                  {reward.reward_description && (
+                                    <p className="text-xs text-gray-600 mt-1">{reward.reward_description}</p>
+                                  )}
+                                </div>
                                 {isUnlocked ? (
-                                  <Unlock className={`w-5 h-5 ${typeInfo.color}`} />
+                                  <Unlock className={`w-5 h-5 ${typeInfo.color} flex-shrink-0`} />
                                 ) : (
-                                  <Lock className="w-5 h-5 text-gray-400" />
+                                  <Lock className="w-5 h-5 text-gray-400 flex-shrink-0" />
                                 )}
-                                <h4 className={`font-bold ${isUnlocked ? 'text-gray-900' : 'text-gray-500'}`}>
-                                  {reward.reward_name || 'Unnamed Reward'}
-                                </h4>
                               </div>
                             </div>
                             {reward.reward_value && (
-                              <div className="text-sm text-gray-600 mb-2">
-                                Value: {reward.reward_value}
+                              <div className="text-xs text-gray-500 mb-2 bg-gray-50 rounded px-2 py-1 inline-block">
+                                Milestone: {reward.reward_value}
                               </div>
                             )}
                             {isUnlocked && reward.unlocked_at && (
-                              <div className="text-xs text-gray-500 mt-2">
-                                Unlocked: {new Date(reward.unlocked_at).toLocaleDateString()}
+                              <div className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                                <Trophy className="w-3 h-3 text-yellow-600" />
+                                <span>Unlocked {new Date(reward.unlocked_at).toLocaleDateString()}</span>
                               </div>
                             )}
                             {!isUnlocked && (
-                              <div className="text-xs text-gray-500 mt-2 italic">
-                                Locked - Complete challenges to unlock
+                              <div className="text-xs text-gray-500 mt-2 italic flex items-center gap-1">
+                                <Lock className="w-3 h-3" />
+                                <span>Keep reading to unlock!</span>
                               </div>
                             )}
                           </div>
@@ -306,11 +519,12 @@ export default function RewardsModal({
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-1">How to Earn Rewards</h4>
                   <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
-                    <li>Complete reading challenges (earn XP - shown in header stats)</li>
+                    <li>Complete reading challenges (earn XP + unlock challenge badges!)</li>
                     <li>Reach reading milestones (10, 25, 50, 100 books)</li>
                     <li>Maintain reading streaks</li>
                     <li>Unlock achievements</li>
                     <li>Level up your reading profile</li>
+                    <li>Complete multiple challenges (1, 3, 5, 10, 20, 50 challenges for special badges!)</li>
                   </ul>
                 </div>
               </div>
@@ -319,6 +533,17 @@ export default function RewardsModal({
         </div>
       </div>
     </div>
+
+    {/* Reward Celebration Animation Modal */}
+    <RewardUnlockedModal
+      show={showRewardAnimation}
+      rewards={selectedReward ? [selectedReward] : []}
+      onClose={() => {
+        setShowRewardAnimation(false);
+        setSelectedReward(null);
+      }}
+    />
+    </>
   );
 }
 

@@ -21,6 +21,7 @@ import LoginModal from './components/modals/LoginModal';
 import ProfileModal from './components/modals/ProfileModal';
 import ChallengeModal from './components/modals/ChallengeModal';
 import RewardsModal from './components/modals/RewardsModal';
+import RewardUnlockedModal from './components/modals/RewardUnlockedModal';
 import Header from './components/layout/Header';
 import UserStatsSection from './components/layout/UserStatsSection';
 import BookshelfDisplay from './components/bookshelf/BookshelfDisplay';
@@ -186,6 +187,10 @@ export default function App() {
     setShowAchievementModal,
     newAchievement,
     setNewAchievement,
+    showRewardModal,
+    setShowRewardModal,
+    newRewards,
+    setNewRewards,
     loadGamificationData,
     checkAchievements,
     handleBookFinished,
@@ -2735,6 +2740,16 @@ export default function App() {
         }}
       />
 
+      {/* Reward Unlocked Modal */}
+      <RewardUnlockedModal
+        show={showRewardModal}
+        rewards={newRewards}
+        onClose={() => {
+          setShowRewardModal(false);
+          setNewRewards([]);
+        }}
+      />
+
       {/* Challenge Modal */}
       <ChallengeModal
         show={showChallengeModal}
@@ -2754,8 +2769,10 @@ export default function App() {
         currentUser={currentUser}
         userRewards={userRewards}
         userXP={userXP}
+        userStreak={userStreak}
         challenges={challenges}
         recentAchievements={recentAchievements}
+        bookshelves={bookshelves}
         onClose={() => setShowRewardsModal(false)}
       />
 

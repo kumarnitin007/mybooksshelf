@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Target, Plus, Calendar, Users, Share2, Trash2, Check, UserCheck, UserPlus, Trophy, BookOpen } from 'lucide-react';
+import { X, Target, Plus, Calendar, Users, Share2, Trash2, Check, UserCheck, UserPlus, Trophy, BookOpen, Filter } from 'lucide-react';
 import { getChallenges, createChallenge, shareChallenge, deleteChallenge, getChallengeUserProgress } from '../../services/gamificationService';
 import { getAllUsers } from '../../services/userService';
 import { getUserProfile } from '../../services/userService';
@@ -38,6 +38,13 @@ export default function ChallengeModal({
   const [endDate, setEndDate] = useState('');
   const [rewardXP, setRewardXP] = useState(100);
   const [description, setDescription] = useState('');
+  // Condition fields (all optional)
+  const [conditionGenre, setConditionGenre] = useState('');
+  const [conditionMinRating, setConditionMinRating] = useState('');
+  const [conditionAuthor, setConditionAuthor] = useState('');
+  const [conditionFormat, setConditionFormat] = useState('');
+  const [conditionYearMin, setConditionYearMin] = useState('');
+  const [conditionYearMax, setConditionYearMax] = useState('');
 
   useEffect(() => {
     if (show && currentUser) {
@@ -153,6 +160,17 @@ export default function ChallengeModal({
 
     setIsLoading(true);
     try {
+      // Process condition fields
+      const conditionGenreArray = conditionGenre.trim() 
+        ? conditionGenre.split(',').map(g => g.trim()).filter(g => g)
+        : null;
+      const conditionAuthorArray = conditionAuthor.trim()
+        ? conditionAuthor.split(',').map(a => a.trim()).filter(a => a)
+        : null;
+      const conditionFormatArray = conditionFormat.trim()
+        ? conditionFormat.split(',').map(f => f.trim()).filter(f => f)
+        : null;
+
       const challengeData = {
         challenge_name: challengeName,
         challenge_type: 'reading', // Required field - default challenge type
@@ -163,7 +181,14 @@ export default function ChallengeModal({
         reward_xp: parseInt(rewardXP) || 0,
         description: description || null,
         is_completed: false,
-        shared_with: selectedUserIds
+        shared_with: selectedUserIds,
+        // Optional condition fields
+        condition_genre: conditionGenreArray,
+        condition_min_rating: conditionMinRating ? parseFloat(conditionMinRating) : null,
+        condition_author: conditionAuthorArray,
+        condition_format: conditionFormatArray,
+        condition_year_min: conditionYearMin ? parseInt(conditionYearMin) : null,
+        condition_year_max: conditionYearMax ? parseInt(conditionYearMax) : null
       };
 
       const { data, error } = await createChallenge(currentUser.id, challengeData);
@@ -294,6 +319,13 @@ export default function ChallengeModal({
                   setRewardXP(100);
                   setDescription('');
                   setSelectedUserIds([]);
+                  // Reset condition fields
+                  setConditionGenre('');
+                  setConditionMinRating('');
+                  setConditionAuthor('');
+                  setConditionFormat('');
+                  setConditionYearMin('');
+                  setConditionYearMax('');
                 }
               }}
               className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
@@ -376,6 +408,99 @@ export default function ChallengeModal({
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
+
+                {/* Optional Conditions Section */}
+                <div className="border-t border-indigo-200 pt-4 mt-4">
+                  <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                    <Filter className="w-4 h-4" />
+                    Optional Book Conditions
+                    <span className="text-xs font-normal text-gray-500">(Leave blank to allow all books)</span>
+                  </h4>
+                  <div className="space-y-3 bg-white rounded-lg p-4 border border-gray-200">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Genre (comma-separated)
+                        </label>
+                        <input
+                          type="text"
+                          value={conditionGenre}
+                          onChange={(e) => setConditionGenre(e.target.value)}
+                          placeholder="e.g., Fantasy, Sci-Fi"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Minimum Rating (stars)
+                        </label>
+                        <input
+                          type="number"
+                          value={conditionMinRating}
+                          onChange={(e) => setConditionMinRating(e.target.value)}
+                          placeholder="e.g., 4.0"
+                          min="0"
+                          max="5"
+                          step="0.5"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Author (comma-separated)
+                        </label>
+                        <input
+                          type="text"
+                          value={conditionAuthor}
+                          onChange={(e) => setConditionAuthor(e.target.value)}
+                          placeholder="e.g., J.K. Rowling, Stephen King"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Format (comma-separated)
+                        </label>
+                        <input
+                          type="text"
+                          value={conditionFormat}
+                          onChange={(e) => setConditionFormat(e.target.value)}
+                          placeholder="e.g., Paperback, Hardcover, Ebook"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Publication Year (Min)
+                        </label>
+                        <input
+                          type="number"
+                          value={conditionYearMin}
+                          onChange={(e) => setConditionYearMin(e.target.value)}
+                          placeholder="e.g., 2000"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Publication Year (Max)
+                        </label>
+                        <input
+                          type="number"
+                          value={conditionYearMax}
+                          onChange={(e) => setConditionYearMax(e.target.value)}
+                          placeholder="e.g., 2024"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={handleCreateChallenge}
