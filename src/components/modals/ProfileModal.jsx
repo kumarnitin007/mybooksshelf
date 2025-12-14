@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { X, User, ChevronUp, ChevronDown, Target, Sparkles, MessageSquare, Settings, Save, BookOpen } from 'lucide-react';
 import AvatarSelector from '../AvatarSelector';
 import { isEmailVerified } from '../../services/authService';
@@ -56,6 +56,8 @@ export default function ProfileModal({
   onSave
 }) {
   if (!show) return null;
+
+  const [isFeedbackExpanded, setIsFeedbackExpanded] = useState(false);
 
   const handleClose = () => {
     onClose();
@@ -384,24 +386,38 @@ export default function ProfileModal({
 
           {/* Feedback Section */}
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
-            <div className="flex items-center gap-3 mb-4">
-              <MessageSquare className="w-6 h-6 text-indigo-600" />
-              <h3 className="text-xl font-bold text-gray-900">Feedback and New Feature Request</h3>
-            </div>
-            <p className="text-sm text-gray-600 mb-4">
-              We'd love to hear your thoughts! Share your feedback, suggestions, or report any issues you've encountered.
-            </p>
-            <textarea
-              value={userProfile.feedback || ''}
-              onChange={(e) => setUserProfile({ ...userProfile, feedback: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-white"
-              placeholder="Tell us what you think about Bookshelf..."
-              rows="5"
-              maxLength={1000}
-            />
-            <div className="text-xs text-gray-500 mt-2 text-right">
-              {(userProfile.feedback || '').length}/1000
-            </div>
+            <button
+              onClick={() => setIsFeedbackExpanded(!isFeedbackExpanded)}
+              className="w-full flex items-center justify-between gap-3 mb-4 hover:opacity-80 transition-opacity"
+            >
+              <div className="flex items-center gap-3">
+                <MessageSquare className="w-6 h-6 text-indigo-600" />
+                <h3 className="text-xl font-bold text-gray-900">Feedback and New Feature Request</h3>
+              </div>
+              {isFeedbackExpanded ? (
+                <ChevronUp className="w-5 h-5 text-indigo-600" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-indigo-600" />
+              )}
+            </button>
+            {isFeedbackExpanded && (
+              <>
+                <p className="text-sm text-gray-600 mb-4">
+                  We'd love to hear your thoughts! Share your feedback, suggestions, or report any issues you've encountered.
+                </p>
+                <textarea
+                  value={userProfile.feedback || ''}
+                  onChange={(e) => setUserProfile({ ...userProfile, feedback: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-white"
+                  placeholder="Tell us what you think about Bookshelf..."
+                  rows="5"
+                  maxLength={1000}
+                />
+                <div className="text-xs text-gray-500 mt-2 text-right">
+                  {(userProfile.feedback || '').length}/1000
+                </div>
+              </>
+            )}
           </div>
 
           {/* Privacy Settings */}

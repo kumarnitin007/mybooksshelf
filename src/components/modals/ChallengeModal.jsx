@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Target, Plus, Calendar, Users, Share2, Trash2, Check, UserCheck, UserPlus, Trophy, BookOpen, Filter } from 'lucide-react';
+import { X, Target, Plus, Calendar, Users, Share2, Trash2, Check, UserCheck, UserPlus, Trophy, BookOpen, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { getChallenges, createChallenge, shareChallenge, deleteChallenge, getChallengeUserProgress } from '../../services/gamificationService';
 import { getAllUsers } from '../../services/userService';
 import { getUserProfile } from '../../services/userService';
@@ -45,6 +45,7 @@ export default function ChallengeModal({
   const [conditionFormat, setConditionFormat] = useState('');
   const [conditionYearMin, setConditionYearMin] = useState('');
   const [conditionYearMax, setConditionYearMax] = useState('');
+  const [isConditionsExpanded, setIsConditionsExpanded] = useState(false);
 
   useEffect(() => {
     if (show && currentUser) {
@@ -411,12 +412,26 @@ export default function ChallengeModal({
 
                 {/* Optional Conditions Section */}
                 <div className="border-t border-indigo-200 pt-4 mt-4">
-                  <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                    <Filter className="w-4 h-4" />
-                    Optional Book Conditions
-                    <span className="text-xs font-normal text-gray-500">(Leave blank to allow all books)</span>
-                  </h4>
-                  <div className="space-y-3 bg-white rounded-lg p-4 border border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setIsConditionsExpanded(!isConditionsExpanded)}
+                    className="w-full flex items-center justify-between gap-2 mb-3 hover:opacity-80 transition-opacity"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Filter className="w-4 h-4" />
+                      <h4 className="text-sm font-bold text-gray-700">
+                        Optional Book Conditions
+                        <span className="text-xs font-normal text-gray-500 ml-2">(Leave blank to allow all books)</span>
+                      </h4>
+                    </div>
+                    {isConditionsExpanded ? (
+                      <ChevronUp className="w-4 h-4 text-gray-600" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-gray-600" />
+                    )}
+                  </button>
+                  {isConditionsExpanded && (
+                    <div className="space-y-3 bg-white rounded-lg p-4 border border-gray-200">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -498,7 +513,8 @@ export default function ChallengeModal({
                         />
                       </div>
                     </div>
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-3 pt-2">

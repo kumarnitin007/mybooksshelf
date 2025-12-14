@@ -1174,7 +1174,6 @@ export default function App() {
         alert(`Failed to save bookshelf name to database: ${result.error.message || 'Unknown error'}. The change may not persist after page reload.`);
         // Continue with local update so user sees the change
       } else {
-        console.log('Bookshelf name updated successfully in database:', result.data);
       }
 
       // Update local state
