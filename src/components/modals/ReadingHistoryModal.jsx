@@ -487,7 +487,7 @@ export default function ReadingHistoryModal({
                 <div className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-lg p-4 border border-teal-200">
                   <div className="flex items-center gap-2 mb-2">
                     <Sparkles className="w-5 h-5 text-teal-600" />
-                    <span className="text-sm font-medium text-gray-600">Favorite Author</span>
+                    <span className="text-sm font-medium text-gray-600">Most Read Author</span>
                   </div>
                   <p className="text-lg font-bold text-teal-600 truncate">{additionalStats.favoriteAuthor}</p>
                 </div>

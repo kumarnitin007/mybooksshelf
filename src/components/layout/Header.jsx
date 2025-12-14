@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Info, Sparkles, Globe, Target, Trophy, BarChart3 } from 'lucide-react';
+import { User, Info, Sparkles, Globe, Target, Trophy, BarChart3, Shield } from 'lucide-react';
 import { ANIMAL_THEMES } from '../../constants/animalThemes';
 
 /**
@@ -17,6 +17,7 @@ import { ANIMAL_THEMES } from '../../constants/animalThemes';
  * @param {function} onShowChallenges - Callback to show challenges modal
  * @param {function} onShowRewards - Callback to show rewards modal
  * @param {function} onShowReadingHistory - Callback to show reading history modal
+ * @param {function} onShowAdmin - Callback to show admin console modal
  */
 export default function Header({
   currentUser,
@@ -30,7 +31,8 @@ export default function Header({
   onShowAIRecommendations,
   onShowChallenges,
   onShowRewards,
-  onShowReadingHistory
+  onShowReadingHistory,
+  onShowAdmin
 }) {
   const theme = activeShelf ? ANIMAL_THEMES[activeShelf.animal] || ANIMAL_THEMES.cat : ANIMAL_THEMES.cat;
 
@@ -42,11 +44,6 @@ export default function Header({
             <div className={`bg-gradient-to-br ${theme.colors.primary} p-2 sm:p-3 rounded-xl flex items-center justify-center`}>
               <span className="text-2xl sm:text-4xl">📚</span>
             </div>
-            {currentUser && userProfile?.avatar && (
-              <div className="text-2xl sm:text-3xl hidden sm:block" title={currentUser.username}>
-                {userProfile.avatar}
-              </div>
-            )}
             <div>
               <h1 className="text-xl sm:text-3xl font-bold text-gray-900">My Bookshelf</h1>
               <p className="text-xs sm:text-base text-gray-600">{totalBooks} books</p>
@@ -89,15 +86,17 @@ export default function Header({
             </button>
             <button
               onClick={onShowAIRecommendations}
-              disabled={currentUser?.username === 'Default User'}
+              disabled={currentUser?.username === 'Default User' || userProfile?.ai_recommendations_enabled === false}
               className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg sm:rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md text-xs sm:text-sm ${
-                currentUser?.username === 'Default User' 
+                currentUser?.username === 'Default User' || userProfile?.ai_recommendations_enabled === false
                   ? 'opacity-50 cursor-not-allowed' 
                   : ''
               }`}
               title={
                 currentUser?.username === 'Default User' 
-                  ? 'Please login to use this paid feature' 
+                  ? 'Please login to use this paid feature'
+                  : userProfile?.ai_recommendations_enabled === false
+                  ? 'AI recommendations are not enabled for your account'
                   : 'AI-Powered Recommendations'
               }
             >
@@ -130,6 +129,16 @@ export default function Header({
                   <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
                   <span className="hidden sm:inline">History</span>
                 </button>
+                {userProfile?.is_admin && (
+                  <button
+                    onClick={onShowAdmin}
+                    className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg sm:rounded-xl hover:from-red-700 hover:to-pink-700 transition-all shadow-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
+                    title="Admin Console"
+                  >
+                    <Shield className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                    <span className="hidden sm:inline">Admin</span>
+                  </button>
+                )}
               </>
             )}
           </div>

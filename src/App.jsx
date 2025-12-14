@@ -23,6 +23,7 @@ import ChallengeModal from './components/modals/ChallengeModal';
 import RewardsModal from './components/modals/RewardsModal';
 import ReadingHistoryModal from './components/modals/ReadingHistoryModal';
 import RewardUnlockedModal from './components/modals/RewardUnlockedModal';
+import AdminModal from './components/modals/AdminModal';
 import Header from './components/layout/Header';
 import UserStatsSection from './components/layout/UserStatsSection';
 import BookshelfDisplay from './components/bookshelf/BookshelfDisplay';
@@ -202,6 +203,7 @@ export default function App() {
   const [showChallengeModal, setShowChallengeModal] = useState(false);
   const [showRewardsModal, setShowRewardsModal] = useState(false);
   const [showReadingHistoryModal, setShowReadingHistoryModal] = useState(false);
+  const [showAdminModal, setShowAdminModal] = useState(false);
   const [showQuizModal, setShowQuizModal] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
@@ -375,12 +377,16 @@ export default function App() {
         console.error('Error loading profile:', profileError);
       } else if (profileData) {
         setUserProfile({
+          id: profileData.id,
+          user_id: profileData.user_id,
           name: profileData.name || '',
           monthlyTarget: profileData.monthly_target || 0,
           avatar: profileData.avatar || '📚',
           bio: profileData.bio || '',
           feedback: profileData.feedback || '',
-          hideFromComparison: profileData.hide_from_comparison || false
+          hideFromComparison: profileData.hide_from_comparison || false,
+          is_admin: profileData.is_admin || false,
+          ai_recommendations_enabled: profileData.ai_recommendations_enabled !== false // Default to true
         });
       }
 
@@ -949,6 +955,31 @@ export default function App() {
         alert('This bookshelf is full! It will be moved to Completed Bookshelves. Creating a new bookshelf...');
         createNewBookshelf();
         return;
+      }
+
+      // Check for duplicate book across all bookshelves (same title and author)
+      if (currentUser) {
+        const { getAllUserBooks } = await import('./services/bookService');
+        const { data: allUserBooks } = await getAllUserBooks(currentUser.id);
+        
+        if (allUserBooks && allUserBooks.length > 0) {
+          const duplicateBook = allUserBooks.find(
+            book => 
+              book.title?.toLowerCase().trim() === newBook.title?.toLowerCase().trim() &&
+              (book.author || '').toLowerCase().trim() === (newBook.author || '').toLowerCase().trim()
+          );
+          
+          if (duplicateBook) {
+            const confirmAdd = window.confirm(
+              `You already have "${newBook.title}" by ${newBook.author || 'Unknown Author'} in your collection. ` +
+              `Do you want to add it again?`
+            );
+            if (!confirmAdd) {
+              isUpdatingRef.current = false;
+              return;
+            }
+          }
+        }
       }
 
       // Save book to Supabase database
@@ -2099,6 +2130,7 @@ export default function App() {
         onShowChallenges={() => setShowChallengeModal(true)}
         onShowRewards={() => setShowRewardsModal(true)}
         onShowReadingHistory={() => setShowReadingHistoryModal(true)}
+        onShowAdmin={() => setShowAdminModal(true)}
       />
 
       {/* User Stats Section */}
@@ -2783,6 +2815,13 @@ export default function App() {
         show={showReadingHistoryModal}
         bookshelves={bookshelves}
         onClose={() => setShowReadingHistoryModal(false)}
+      />
+
+      {/* Admin Modal */}
+      <AdminModal
+        show={showAdminModal}
+        currentUser={currentUser}
+        onClose={() => setShowAdminModal(false)}
       />
 
     </div>

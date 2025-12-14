@@ -34,12 +34,16 @@ export function useUserData(currentUser) {
         console.error('Error loading profile:', profileError);
       } else if (profileData) {
         setUserProfile({
+          id: profileData.id,
+          user_id: profileData.user_id,
           name: profileData.name || '',
           monthlyTarget: profileData.monthly_target || 0,
           avatar: profileData.avatar || '📚',
           bio: profileData.bio || '',
           feedback: profileData.feedback || '',
-          hideFromComparison: profileData.hide_from_comparison || false
+          hideFromComparison: profileData.hide_from_comparison || false,
+          is_admin: profileData.is_admin || false,
+          ai_recommendations_enabled: profileData.ai_recommendations_enabled !== false // Default to true
         });
       }
       // If no profile exists, that's fine - user will create one later

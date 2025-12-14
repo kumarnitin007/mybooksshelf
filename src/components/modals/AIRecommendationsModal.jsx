@@ -50,6 +50,17 @@ export default function AIRecommendationsModal({
 
   useEffect(() => {
     if (show) {
+      // Check if user has AI recommendations access
+      // Default to true if not set (for backward compatibility)
+      const hasAccess = userProfile?.ai_recommendations_enabled !== false;
+      
+      if (!hasAccess) {
+        setError('AI recommendations are not enabled for your account. Please contact an administrator.');
+        setShowBookSelection(false);
+        setShowParameters(false);
+        return;
+      }
+
       // Get wishlist bookshelf to identify wishlist books
       const wishlistShelf = bookshelves.find(shelf => shelf.type === 'wishlist');
       const wishlistBookIds = wishlistShelf ? new Set(wishlistShelf.books.map(b => b.id)) : new Set();
