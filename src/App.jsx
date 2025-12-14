@@ -21,6 +21,7 @@ import LoginModal from './components/modals/LoginModal';
 import ProfileModal from './components/modals/ProfileModal';
 import ChallengeModal from './components/modals/ChallengeModal';
 import RewardsModal from './components/modals/RewardsModal';
+import ReadingHistoryModal from './components/modals/ReadingHistoryModal';
 import RewardUnlockedModal from './components/modals/RewardUnlockedModal';
 import Header from './components/layout/Header';
 import UserStatsSection from './components/layout/UserStatsSection';
@@ -200,6 +201,7 @@ export default function App() {
   // Modal states
   const [showChallengeModal, setShowChallengeModal] = useState(false);
   const [showRewardsModal, setShowRewardsModal] = useState(false);
+  const [showReadingHistoryModal, setShowReadingHistoryModal] = useState(false);
   const [showQuizModal, setShowQuizModal] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
@@ -2096,6 +2098,7 @@ export default function App() {
         }}
         onShowChallenges={() => setShowChallengeModal(true)}
         onShowRewards={() => setShowRewardsModal(true)}
+        onShowReadingHistory={() => setShowReadingHistoryModal(true)}
       />
 
       {/* User Stats Section */}
@@ -2773,6 +2776,13 @@ export default function App() {
         recentAchievements={recentAchievements}
         bookshelves={bookshelves}
         onClose={() => setShowRewardsModal(false)}
+      />
+
+      {/* Reading History Modal */}
+      <ReadingHistoryModal
+        show={showReadingHistoryModal}
+        bookshelves={bookshelves}
+        onClose={() => setShowReadingHistoryModal(false)}
       />
 
     </div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Info, Sparkles, Globe, Target, Trophy } from 'lucide-react';
+import { User, Info, Sparkles, Globe, Target, Trophy, BarChart3 } from 'lucide-react';
 import { ANIMAL_THEMES } from '../../constants/animalThemes';
 
 /**
@@ -16,6 +16,7 @@ import { ANIMAL_THEMES } from '../../constants/animalThemes';
  * @param {function} onShowAIRecommendations - Callback to show AI recommendations modal
  * @param {function} onShowChallenges - Callback to show challenges modal
  * @param {function} onShowRewards - Callback to show rewards modal
+ * @param {function} onShowReadingHistory - Callback to show reading history modal
  */
 export default function Header({
   currentUser,
@@ -28,7 +29,8 @@ export default function Header({
   onShowPublicRecommendations,
   onShowAIRecommendations,
   onShowChallenges,
-  onShowRewards
+  onShowRewards,
+  onShowReadingHistory
 }) {
   const theme = activeShelf ? ANIMAL_THEMES[activeShelf.animal] || ANIMAL_THEMES.cat : ANIMAL_THEMES.cat;
 
@@ -119,6 +121,14 @@ export default function Header({
                 >
                   <Trophy className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
                   <span className="hidden sm:inline">Rewards</span>
+                </button>
+                <button
+                  onClick={onShowReadingHistory}
+                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-lg sm:rounded-xl hover:from-teal-700 hover:to-cyan-700 transition-all shadow-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
+                  title="Reading History & Analytics"
+                >
+                  <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                  <span className="hidden sm:inline">History</span>
                 </button>
               </>
             )}
