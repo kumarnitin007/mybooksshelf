@@ -88,7 +88,18 @@ export const generateAIRecommendations = async (userBooks, userProfile, userId =
     // Note: API key is stored server-side only (in Vercel env vars as OPENAI_API_KEY)
     // Frontend doesn't need the key - it just calls the serverless function
     const apiKeyExists = true; // Assume API is available if serverless function exists
-    let recommendations = await callAIRecommendationAPI(prompt, userBooks, apiKeyExists, { tokenEstimate, costEstimate });
+    const apiResult = await callAIRecommendationAPI(prompt, userBooks, apiKeyExists, { tokenEstimate, costEstimate });
+    
+    // Handle both old format (array) and new format (object with recommendations and rawResponse)
+    let recommendations, rawResponse = null;
+    if (Array.isArray(apiResult)) {
+      recommendations = apiResult;
+    } else if (apiResult && apiResult.recommendations) {
+      recommendations = apiResult.recommendations;
+      rawResponse = apiResult.rawResponse;
+    } else {
+      recommendations = [];
+    }
     
     // Determine if API was actually used (check if recommendations have isAI flag)
     const apiKeyUsed = recommendations && recommendations.length > 0 && recommendations[0]?.isAI === true;
@@ -126,7 +137,10 @@ export const generateAIRecommendations = async (userBooks, userProfile, userId =
           estimatedCost
         },
         recommendations,
-        { fromCache: false }
+        { 
+          fromCache: false,
+          rawResponse: rawResponse // Pass raw AI response for storage
+        }
       );
     }
     
@@ -145,6 +159,247 @@ export const generateAIRecommendations = async (userBooks, userProfile, userId =
       error,
       fromCache: false,
       rateLimited: false
+    };
+  }
+};
+
+/**
+ * Generate writing style feedback from book reviews
+ * @param {array} booksWithReviews - Array of books with reviews
+ * @param {string} userId - User ID for rate limiting
+ * @returns {Promise<{data: string|null, error: object|null}>}
+ */
+export const generateWritingStyleFeedback = async (booksWithReviews, userId = null, userProfile = null) => {
+  try {
+    // Check rate limiting if userId is provided
+    if (userId) {
+      const { checkRateLimit } = await import('./aiRecommendationRateLimit');
+      const rateLimitCheck = await checkRateLimit(userId);
+      if (!rateLimitCheck.allowed) {
+        return {
+          data: null,
+          error: { message: rateLimitCheck.reason, code: 'RATE_LIMIT_EXCEEDED' }
+        };
+      }
+    }
+
+    // Extract age group from user profile
+    const ageGroup = userProfile?.age_group || null;
+    const ageContext = ageGroup ? ` The student's age group is: ${ageGroup}. Please consider this when assessing their writing skill level and providing age-appropriate feedback.` : '';
+
+    // Build prompt for writing style feedback
+    let prompt = `You are an expert writing coach and educator specializing in helping students improve their writing skills. Analyze the following book reviews written by a student and provide comprehensive feedback on their writing style, strengths, and areas for improvement.${ageContext}\n\n`;
+    
+    prompt += `Student's Book Reviews (${booksWithReviews.length} reviews):\n\n`;
+    
+    booksWithReviews.forEach((book, index) => {
+      prompt += `Review ${index + 1}:\n`;
+      prompt += `Book: "${book.title}" by ${book.author || 'Unknown Author'}\n`;
+      prompt += `Review:\n${book.review}\n\n`;
+    });
+    
+    prompt += `IMPORTANT: Please provide your feedback as a valid JSON object with the following structure. The example below is for structure reference only - use actual values based on your analysis:\n\n`;
+    prompt += `{\n`;
+    prompt += `  "readingGradeLevel": "8th grade",\n`;
+    prompt += `  "writingSkillLevel": 7,\n`;
+    prompt += `  "skillBreakdown": {\n`;
+    prompt += `    "contentUnderstanding": 8,\n`;
+    prompt += `    "engagement": 8,\n`;
+    prompt += `    "writingMechanics": 6\n`;
+    prompt += `  },\n`;
+    prompt += `  "strengths": ["Clear and engaging writing style", "Good use of descriptive language", "Well-organized thoughts"],\n`;
+    prompt += `  "improvements": ["Grammar and punctuation need work", "Could use more varied sentence structure", "Deeper analysis would strengthen reviews"],\n`;
+    prompt += `  "specificSuggestions": ["Practice using commas correctly", "Try varying sentence lengths", "Include specific examples from books"],\n`;
+    prompt += `  "tips": ["Start with a brief summary", "State your opinion clearly", "Use examples from the book"],\n`;
+    prompt += `  "overallAssessment": "The student shows strong potential with engaging writing. With focus on grammar and deeper analysis, their reviews will become even more compelling."\n`;
+    prompt += `}\n\n`;
+    prompt += `Requirements:\n`;
+    prompt += `- "readingGradeLevel": A single string like "6th grade", "9th grade", "high school level", or "college level" - assess the reading level demonstrated in the reviews\n`;
+    prompt += `- "writingSkillLevel": REQUIRED - A number from 1 to 10 representing the overall writing skill level. This is a critical field. Rate this based on the student's age/grade level if provided. For example, if the student is 12 years old, rate it on a scale of 1-10 for a 12-year-old. This should be a single integer (e.g., 7, not 7.5). Consider grammar, clarity, engagement, depth of analysis, and overall writing quality.\n`;
+    prompt += `- "skillBreakdown": An object with three numeric scores (1-10 each): "contentUnderstanding" (how well they understand the book), "engagement" (how engaging their writing is), and "writingMechanics" (grammar, punctuation, sentence structure).\n`;
+    prompt += `- "strengths": An array of 3-5 specific strengths (each as a string)\n`;
+    prompt += `- "improvements": An array of 3-5 specific areas for improvement (each as a string)\n`;
+    prompt += `- "specificSuggestions": An array of 5-7 actionable suggestions (each as a string)\n`;
+    prompt += `- "tips": An array of 3-5 tips for writing better reviews (each as a string)\n`;
+    prompt += `- "overallAssessment": A single string with 2-3 sentences summarizing the student's writing ability and explaining the writingSkillLevel rating\n\n`;
+    prompt += `Please be encouraging, constructive, and specific. Return ONLY valid JSON, no additional text before or after.`;
+
+    // Call AI API for writing feedback (returns JSON)
+    // Use the same API endpoint but with mode='json'
+    const isProduction = import.meta.env.PROD || (typeof window !== 'undefined' && window.location.hostname !== 'localhost');
+    const apiUrl = isProduction ? '/api/openai' : 'http://localhost:3001/api/openai';
+    
+    console.log('Calling OpenAI API for writing feedback with mode=text');
+    
+    // Track request start time
+    const requestStartTime = Date.now();
+    const requestTimestamp = new Date().toISOString();
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        prompt: prompt,
+        model: 'gpt-4o-mini',
+        max_tokens: 2000, // More tokens for detailed feedback
+        temperature: 0.7,
+        mode: 'json' // Return JSON for structured parsing
+      }),
+    });
+    
+    console.log('OpenAI API response status:', response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    // Track response time
+    const responseTimestamp = new Date().toISOString();
+    const timeTakenMs = Date.now() - requestStartTime;
+    
+    // Store raw response for database
+    const rawResponse = JSON.stringify(data);
+    
+    // Extract feedback from API response (should be JSON)
+    let feedbackText = null;
+    let feedbackJson = null;
+    
+    // Format 1: Processed response from our API handler (mode='json')
+    if (data.text) {
+      feedbackText = data.text;
+    }
+    // Format 2: Standard OpenAI API response
+    else if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
+      feedbackText = data.choices[0].message.content;
+    }
+    // Format 3: Alternative response formats
+    else if (data.response) {
+      feedbackText = data.response;
+    }
+    else if (data.message) {
+      feedbackText = data.message;
+    }
+    
+    if (!feedbackText || feedbackText.trim().length === 0) {
+      console.error('Unexpected API response format for writing feedback:', {
+        responseKeys: Object.keys(data),
+        fullResponse: data,
+        hasChoices: !!data.choices,
+        choicesLength: data.choices?.length,
+        firstChoice: data.choices?.[0]
+      });
+      throw new Error('No feedback generated. The API response format was unexpected. Please check the console for details.');
+    }
+    
+    // Try to parse as JSON
+    try {
+      // Clean up the text - remove markdown code blocks if present
+      let cleanedText = feedbackText.trim();
+      if (cleanedText.startsWith('```json')) {
+        cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleanedText.startsWith('```')) {
+        cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+      
+      feedbackJson = JSON.parse(cleanedText);
+      console.log('Writing feedback parsed as JSON successfully');
+    } catch (parseError) {
+      console.warn('Failed to parse feedback as JSON, will use text parsing:', parseError);
+      feedbackJson = null;
+    }
+    
+    console.log('Writing feedback received successfully, length:', feedbackText.length, 'Time taken:', timeTakenMs, 'ms');
+
+    // Record the request if userId is provided
+    let feedbackRecordId = null;
+    if (userId) {
+      try {
+        const { recordRequest } = await import('./aiRecommendationRateLimit');
+        await recordRequest(userId);
+      } catch (err) {
+        console.warn('Failed to record writing feedback request:', err);
+      }
+      
+      // Step 1: Save raw response immediately to database (before parsing)
+      try {
+        const { saveWritingFeedbackRaw, updateWritingFeedbackParsed } = await import('./writingFeedbackService');
+        const estimatedTokens = data.usage?.total_tokens || Math.ceil(prompt.length / 4) + 2000;
+        const costEst = estimateAICost(estimatedTokens - 2000, 2000); // input tokens, output tokens
+        
+        // Insert with raw response first (as JSON string)
+        const saveResult = await saveWritingFeedbackRaw(
+          userId,
+          {
+            booksAnalyzed: booksWithReviews,
+            prompt: prompt,
+            modelUsed: 'gpt-4o-mini',
+            apiKeyUsed: true,
+            tokensUsed: estimatedTokens,
+            estimatedCost: costEst.totalCost,
+            timeTakenMs: timeTakenMs,
+            requestTimestamp: requestTimestamp,
+            responseTimestamp: responseTimestamp
+          },
+          rawResponse // Full raw response as JSON string - save immediately
+        );
+        
+        if (saveResult.data && saveResult.data.id) {
+          feedbackRecordId = saveResult.data.id;
+        }
+      } catch (err) {
+        console.warn('Failed to save writing feedback to database:', err);
+        // Don't fail the request if saving fails
+      }
+    }
+
+    // Step 2: Parse feedback to extract structured data (after saving raw response)
+    // If we have JSON, use it directly; otherwise parse from text
+    const parsedData = feedbackJson 
+      ? {
+          readingGradeLevel: feedbackJson.readingGradeLevel || null,
+          writingSkillLevel: typeof feedbackJson.writingSkillLevel === 'number' ? feedbackJson.writingSkillLevel : null,
+          skillBreakdown: feedbackJson.skillBreakdown || null,
+          overallAssessment: feedbackJson.overallAssessment || null,
+          strengths: Array.isArray(feedbackJson.strengths) ? feedbackJson.strengths : [],
+          improvements: Array.isArray(feedbackJson.improvements) ? feedbackJson.improvements : [],
+          specificSuggestions: Array.isArray(feedbackJson.specificSuggestions) ? feedbackJson.specificSuggestions : [],
+          tips: Array.isArray(feedbackJson.tips) ? feedbackJson.tips : []
+        }
+      : parseWritingFeedbackResponse(feedbackText);
+
+    // Step 3: Update the record with parsed data
+    if (userId && feedbackRecordId) {
+      try {
+        const { updateWritingFeedbackParsed } = await import('./writingFeedbackService');
+        await updateWritingFeedbackParsed(feedbackRecordId, userId, parsedData);
+      } catch (err) {
+        console.warn('Failed to update writing feedback with parsed data:', err);
+        // Don't fail the request if update fails - raw data is already saved
+      }
+    }
+
+    return {
+      data: feedbackText, // Keep text for display/fallback
+      rawResponse: rawResponse,
+      parsedData: parsedData,
+      metadata: {
+        timeTakenMs,
+        tokensUsed: data.usage?.total_tokens || null,
+        requestTimestamp,
+        responseTimestamp
+      },
+      error: null
+    };
+  } catch (error) {
+    console.error('Error generating writing style feedback:', error);
+    return {
+      data: null,
+      error
     };
   }
 };
@@ -309,6 +564,12 @@ const buildRecommendationPrompt = (analysis, userProfile) => {
   prompt += `User's Reading Profile:\n`;
   prompt += `- Total books read: ${analysis.totalBooks}\n`;
   prompt += `- Average rating: ${averageRating}/5\n`;
+  
+  // Include age group if available for age-appropriate recommendations
+  if (userProfile && userProfile.age_group && userProfile.age_group.trim()) {
+    prompt += `- Age group: ${userProfile.age_group}\n`;
+    prompt += `Please consider age-appropriate content and reading level when making recommendations.\n`;
+  }
   
   if (favoriteGenres.length > 0) {
     prompt += `- Favorite genres: ${favoriteGenres.join(', ')}\n`;
@@ -533,6 +794,9 @@ const callAIRecommendationAPI = async (prompt, userBooks = [], apiKeyExists = fa
     const data = await response.json();
     const content = data.choices[0]?.message?.content || '[]';
     
+    // Store raw response for database
+    const rawResponse = JSON.stringify(data);
+    
     // Parse JSON response
     let recommendations;
     try {
@@ -588,11 +852,19 @@ const callAIRecommendationAPI = async (prompt, userBooks = [], apiKeyExists = fa
       };
     });
     
-    return scoredRecommendations;
+    // Return both recommendations and raw response
+    return {
+      recommendations: scoredRecommendations,
+      rawResponse: rawResponse
+    };
   } catch (error) {
     console.error('Error calling AI API:', error);
     // Fallback to rule-based recommendations
-    return generateFallbackRecommendations(prompt, userBooks);
+    const fallbackRecs = generateFallbackRecommendations(prompt, userBooks);
+    return {
+      recommendations: fallbackRecs,
+      rawResponse: null // No raw response for fallback
+    };
   }
 };
 
@@ -704,4 +976,142 @@ const generateFallbackRecommendations = (prompt, userBooks = []) => {
     isAI: false
   }));
 };
+
+/**
+ * Parse writing feedback response to extract structured data
+ * @param {string} feedback - Raw feedback text from AI
+ * @returns {object} Parsed data with grade level, strengths, improvements, etc.
+ */
+function parseWritingFeedbackResponse(feedback) {
+  const parsed = {
+    readingGradeLevel: null,
+    overallAssessment: null,
+    strengths: [],
+    improvements: [],
+    specificSuggestions: [],
+    tips: []
+  };
+
+  if (!feedback) return parsed;
+
+  // Extract grade level - look for patterns like "8th grade", "9th grade", "college level", etc.
+  const gradeLevelPatterns = [
+    /(?:grade level|reading level|writing level)[:\s]+([^\n]+)/i,
+    /(?:estimated|assessed|evaluated)[:\s]+([^\n]+(?:grade|level))/i,
+    /(\d+(?:st|nd|rd|th)?\s+grade)/i,
+    /(college|high school|middle school|elementary)\s+level/i
+  ];
+  
+  for (const pattern of gradeLevelPatterns) {
+    const match = feedback.match(pattern);
+    if (match) {
+      parsed.readingGradeLevel = match[1].trim();
+      break;
+    }
+  }
+
+  // Extract overall assessment (usually at the end or in a specific section)
+  const assessmentPatterns = [
+    /(?:overall assessment|overall|summary|conclusion)[:\s]+([^\n]+(?:\n[^\n]+){0,3})/i,
+    /(?:in summary|to conclude|overall)[:\s]+([^\n]+(?:\n[^\n]+){0,2})/i
+  ];
+  
+  for (const pattern of assessmentPatterns) {
+    const match = feedback.match(pattern);
+    if (match) {
+      parsed.overallAssessment = match[1].trim().substring(0, 500); // Limit length
+      break;
+    }
+  }
+
+  // Try to extract JSON arrays first (common in AI responses)
+  const jsonPatterns = {
+    improvements: /(?:Areas?\s+for\s+)?Improvement[:\s]*\[([^\]]+)\]/i,
+    suggestions: /(?:Specific\s+)?Suggestions?[:\s]*\[([^\]]+)\]/i,
+    tips: /(?:Writing\s+)?Tips?\s+(?:for\s+Better\s+Reviews?)?[:\s]*\[([^\]]+)\]/i,
+    strengths: /(?:Writing\s+)?Strengths?[:\s]*\[([^\]]+)\]/i
+  };
+
+  // Extract JSON arrays
+  for (const [key, pattern] of Object.entries(jsonPatterns)) {
+    const match = feedback.match(pattern);
+    if (match) {
+      try {
+        // Try to parse as JSON array
+        const jsonStr = '[' + match[1] + ']';
+        const parsedArray = JSON.parse(jsonStr);
+        if (Array.isArray(parsedArray)) {
+          const fieldName = key === 'suggestions' ? 'specificSuggestions' : key;
+          parsed[fieldName] = parsedArray
+            .map(item => typeof item === 'string' ? item.trim() : String(item))
+            .filter(item => item.length > 0)
+            .slice(0, 10);
+          continue; // Skip text-based extraction if JSON worked
+        }
+      } catch (e) {
+        // If JSON parsing fails, try comma-separated extraction
+        const items = match[1]
+          .split(',')
+          .map(item => item.replace(/^["']|["']$/g, '').trim())
+          .filter(item => item.length > 0)
+          .slice(0, 10);
+        if (items.length > 0) {
+          const fieldName = key === 'suggestions' ? 'specificSuggestions' : key;
+          parsed[fieldName] = items;
+          continue; // Skip text-based extraction if comma-separated worked
+        }
+      }
+    }
+  }
+
+  // Extract strengths - look for bullet points or numbered lists
+  if (parsed.strengths.length === 0) {
+    const strengthsSection = feedback.match(/(?:strengths?|strength)[:\s]*\n((?:[-•*]\s*[^\n]+\n?)+)/i);
+    if (strengthsSection) {
+      parsed.strengths = strengthsSection[1]
+        .split(/\n/)
+        .map(line => line.replace(/^[-•*]\s*/, '').trim())
+        .filter(line => line.length > 0)
+        .slice(0, 10); // Limit to 10 items
+    }
+  }
+
+  // Extract improvements
+  if (parsed.improvements.length === 0) {
+    const improvementsSection = feedback.match(/(?:improvement|areas?\s+for\s+improvement|areas?\s+to\s+improve|weaknesses?)[:\s]*\n((?:[-•*]\s*[^\n]+\n?)+)/i);
+    if (improvementsSection) {
+      parsed.improvements = improvementsSection[1]
+        .split(/\n/)
+        .map(line => line.replace(/^[-•*]\s*/, '').trim())
+        .filter(line => line.length > 0)
+        .slice(0, 10);
+    }
+  }
+
+  // Extract specific suggestions
+  if (parsed.specificSuggestions.length === 0) {
+    const suggestionsSection = feedback.match(/(?:suggestions?|specific\s+suggestions?|recommendations?)[:\s]*\n((?:[-•*]\s*[^\n]+\n?)+)/i);
+    if (suggestionsSection) {
+      parsed.specificSuggestions = suggestionsSection[1]
+        .split(/\n/)
+        .map(line => line.replace(/^[-•*]\s*/, '').trim())
+        .filter(line => line.length > 0)
+        .slice(0, 10);
+    }
+  }
+
+  // Extract tips
+  if (parsed.tips.length === 0) {
+    const tipsSection = feedback.match(/(?:tips?|writing\s+tips?|tips?\s+for\s+better\s+reviews?)[:\s]*\n((?:[-•*]\s*[^\n]+\n?)+)/i);
+    if (tipsSection) {
+      parsed.tips = tipsSection[1]
+        .split(/\n/)
+        .map(line => line.replace(/^[-•*]\s*/, '').trim())
+        .filter(line => line.length > 0)
+        .slice(0, 10);
+    }
+  }
+
+  return parsed;
+}
 

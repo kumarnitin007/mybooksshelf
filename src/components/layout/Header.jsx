@@ -1,5 +1,5 @@
-import React from 'react';
-import { User, Info, Sparkles, Globe, Target, Trophy, BarChart3, Shield } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { User, Info, Sparkles, Globe, Target, Trophy, BarChart3, Shield, PenTool, BookOpen } from 'lucide-react';
 import { ANIMAL_THEMES } from '../../constants/animalThemes';
 
 /**
@@ -29,6 +29,7 @@ export default function Header({
   onShowProfile,
   onShowPublicRecommendations,
   onShowAIRecommendations,
+  onShowWritingFeedback,
   onShowChallenges,
   onShowRewards,
   onShowReadingHistory,
@@ -45,7 +46,7 @@ export default function Header({
               <span className="text-2xl sm:text-4xl">📚</span>
             </div>
             <div>
-              <h1 className="text-xl sm:text-3xl font-bold text-gray-900">My Bookshelf</h1>
+              <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Books</h1>
               <p className="text-xs sm:text-base text-gray-600">{totalBooks} books</p>
             </div>
           </div>
@@ -87,59 +88,101 @@ export default function Header({
             <button
               onClick={onShowAIRecommendations}
               disabled={currentUser?.username === 'Default User' || userProfile?.ai_recommendations_enabled === false}
-              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg sm:rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md text-xs sm:text-sm ${
+              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg sm:rounded-xl transition-all shadow-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
                 currentUser?.username === 'Default User' || userProfile?.ai_recommendations_enabled === false
                   ? 'opacity-50 cursor-not-allowed' 
-                  : ''
+                  : 'hover:from-indigo-700 hover:to-purple-700'
               }`}
               title={
                 currentUser?.username === 'Default User' 
-                  ? 'Please login to use this paid feature'
+                  ? 'Please login to use this feature'
                   : userProfile?.ai_recommendations_enabled === false
                   ? 'AI recommendations are not enabled for your account'
-                  : 'AI-Powered Recommendations'
+                  : 'Get AI-Powered Book Recommendations'
               }
             >
               <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-              <span className="whitespace-nowrap">Ask AI</span>
+              <span className="hidden sm:inline">Ask AI</span>
             </button>
-            {currentUser && currentUser.username !== 'Default User' && (
-              <>
-                <button
-                  onClick={onShowChallenges}
-                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg sm:rounded-xl hover:from-orange-700 hover:to-red-700 transition-all shadow-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
-                  title="Reading Challenges"
-                >
-                  <Target className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                  <span className="hidden sm:inline">Challenges</span>
-                </button>
-                <button
-                  onClick={onShowRewards}
-                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-yellow-600 to-amber-600 text-white rounded-lg sm:rounded-xl hover:from-yellow-700 hover:to-amber-700 transition-all shadow-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
-                  title="Virtual Rewards"
-                >
-                  <Trophy className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                  <span className="hidden sm:inline">Rewards</span>
-                </button>
-                <button
-                  onClick={onShowReadingHistory}
-                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-lg sm:rounded-xl hover:from-teal-700 hover:to-cyan-700 transition-all shadow-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
-                  title="Reading History & Analytics"
-                >
-                  <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                  <span className="hidden sm:inline">History</span>
-                </button>
-                {userProfile?.is_admin && (
-                  <button
-                    onClick={onShowAdmin}
-                    className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg sm:rounded-xl hover:from-red-700 hover:to-pink-700 transition-all shadow-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
-                    title="Admin Console"
-                  >
-                    <Shield className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                    <span className="hidden sm:inline">Admin</span>
-                  </button>
-                )}
-              </>
+            <button
+              onClick={onShowWritingFeedback}
+              disabled={currentUser?.username === 'Default User' || userProfile?.ai_recommendations_enabled === false}
+              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg sm:rounded-xl transition-all shadow-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
+                currentUser?.username === 'Default User' || userProfile?.ai_recommendations_enabled === false
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : 'hover:from-green-700 hover:to-emerald-700'
+              }`}
+              title={
+                currentUser?.username === 'Default User' 
+                  ? 'Please login to use this feature'
+                  : userProfile?.ai_recommendations_enabled === false
+                  ? 'AI recommendations are not enabled for your account'
+                  : 'Get Writing Style Feedback on Your Reviews'
+              }
+            >
+              <PenTool className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+              <span className="hidden sm:inline">Writing Feedback</span>
+            </button>
+            <button
+              onClick={onShowChallenges}
+              disabled={currentUser?.username === 'Default User'}
+              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg sm:rounded-xl transition-all shadow-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
+                currentUser?.username === 'Default User'
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : 'hover:from-orange-700 hover:to-red-700'
+              }`}
+              title={
+                currentUser?.username === 'Default User' 
+                  ? 'Please login to use this feature'
+                  : 'Reading Challenges'
+              }
+            >
+              <Target className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+              <span className="hidden sm:inline">Challenges</span>
+            </button>
+            <button
+              onClick={onShowRewards}
+              disabled={currentUser?.username === 'Default User'}
+              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-yellow-600 to-amber-600 text-white rounded-lg sm:rounded-xl transition-all shadow-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
+                currentUser?.username === 'Default User'
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : 'hover:from-yellow-700 hover:to-amber-700'
+              }`}
+              title={
+                currentUser?.username === 'Default User' 
+                  ? 'Please login to use this feature'
+                  : 'Virtual Rewards'
+              }
+            >
+              <Trophy className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+              <span className="hidden sm:inline">Rewards</span>
+            </button>
+            <button
+              onClick={onShowReadingHistory}
+              disabled={currentUser?.username === 'Default User'}
+              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-lg sm:rounded-xl transition-all shadow-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
+                currentUser?.username === 'Default User'
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : 'hover:from-teal-700 hover:to-cyan-700'
+              }`}
+              title={
+                currentUser?.username === 'Default User' 
+                  ? 'Please login to use this feature'
+                  : 'Reading History & Analytics'
+              }
+            >
+              <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+              <span className="hidden sm:inline">History</span>
+            </button>
+            {userProfile?.is_admin && (
+              <button
+                onClick={onShowAdmin}
+                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg sm:rounded-xl hover:from-red-700 hover:to-pink-700 transition-all shadow-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
+                title="Admin Console"
+              >
+                <Shield className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                <span className="hidden sm:inline">Admin</span>
+              </button>
             )}
           </div>
         </div>

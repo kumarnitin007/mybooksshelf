@@ -51,7 +51,7 @@ app.get('/health', (req, res) => {
 
 app.post('/api/openai', async (req, res) => {
   try {
-    const { prompt, model = 'gpt-4o-mini', temperature = 0.7, max_tokens = 1500 } = req.body;
+    const { prompt, model = 'gpt-4o-mini', temperature = 0.7, max_tokens = 1500, mode = 'json' } = req.body;
 
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
@@ -92,12 +92,19 @@ app.post('/api/openai', async (req, res) => {
     // Make the fetch call with better error handling
     let response;
     try {
+      // Determine system message based on mode
+      const systemMessage = mode === 'text' 
+        ? 'You are an expert writing coach and educator. Provide detailed, constructive feedback in a clear, well-formatted manner.'
+        : mode === 'json'
+        ? 'You are an expert writing coach and educator. Always respond with valid JSON only. Do not include any text before or after the JSON object.'
+        : 'You are a helpful book recommendation assistant. Always respond with valid JSON only.';
+      
       const requestBody = {
         model,
         messages: [
           {
             role: 'system',
-            content: 'You are a helpful book recommendation assistant. Always respond with valid JSON only.'
+            content: systemMessage
           },
           {
             role: 'user',
@@ -163,6 +170,15 @@ app.post('/api/openai', async (req, res) => {
     }
 
     const data = await response.json();
+    
+    // If mode is 'text', extract and return just the text content
+    if (mode === 'text' && data.choices && data.choices[0] && data.choices[0].message) {
+      return res.status(200).json({
+        text: data.choices[0].message.content,
+        usage: data.usage
+      });
+    }
+    
     res.json(data);
   } catch (error) {
     console.error('Error proxying OpenAI request:', error.message);

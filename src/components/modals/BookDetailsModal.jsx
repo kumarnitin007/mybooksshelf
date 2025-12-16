@@ -409,7 +409,7 @@ export default function BookDetailsModal({
                   <h4 className="text-sm font-semibold text-gray-700 mb-2">📚 Public Libraries</h4>
                   <div className="flex flex-wrap gap-2">
                     <a
-                      href={`https://www.sno-isle.org/search?q=${encodeURIComponent((localBook?.title || selectedBook.title) + ((localBook?.author || selectedBook.author) ? ' ' + (localBook?.author || selectedBook.author) : ''))}`}
+                      href={`https://sno-isle.bibliocommons.com/v2/search?query=${encodeURIComponent((localBook?.title || selectedBook.title) + ((localBook?.author || selectedBook.author) ? ' ' + (localBook?.author || selectedBook.author) : ''))}&searchType=smart`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm"
@@ -480,6 +480,59 @@ export default function BookDetailsModal({
                     </a>
                   </div>
                 </div>
+
+                {/* User Defined Libraries */}
+                {(() => {
+                  if (!userProfile?.custom_library_buttons) return null;
+                  
+                  let customButtons = [];
+                  try {
+                    const buttonsData = userProfile.custom_library_buttons;
+                    if (typeof buttonsData === 'string') {
+                      customButtons = JSON.parse(buttonsData);
+                    } else if (Array.isArray(buttonsData)) {
+                      customButtons = buttonsData;
+                    }
+                  } catch (e) {
+                    console.error('Error parsing custom_library_buttons:', e);
+                    return null;
+                  }
+                  
+                  // Filter out buttons without name or url
+                  customButtons = customButtons.filter(btn => btn && btn.name && btn.url && btn.name.trim() && btn.url.trim());
+                  
+                  if (customButtons.length === 0) return null;
+                  
+                  const bookTitle = encodeURIComponent(localBook?.title || selectedBook.title || '');
+                  const bookAuthor = encodeURIComponent(localBook?.author || selectedBook.author || '');
+                  
+                  return (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700 mb-2">📖 User Defined Libraries</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {customButtons.map((button, index) => {
+                          // Replace {title} and {author} placeholders in URL
+                          let url = button.url;
+                          url = url.replace(/\{title\}/g, bookTitle);
+                          url = url.replace(/\{author\}/g, bookAuthor);
+                          
+                          return (
+                            <a
+                              key={index}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium shadow-sm"
+                            >
+                              <Library className="w-4 h-4" />
+                              {button.name}
+                            </a>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <p className="text-xs text-gray-500 mt-2">
                   Opens in a new tab. You may need to search manually if the book isn't found automatically.

@@ -1,4 +1,5 @@
 import React from 'react';
+import { getGenreColor } from '../../utils/genreColors';
 
 /**
  * BookSpine Component
@@ -116,7 +117,6 @@ export default function BookSpine({ book, index, onClick }) {
         <div className="font-semibold">{book.title}</div>
         {book.author && <div className="text-gray-300 text-[10px] mt-1">{book.author}</div>}
         {book.genre && (() => {
-          const { getGenreColor } = require('../../utils/genreColors');
           const genreColors = getGenreColor(book.genre);
           return (
             <div className="mt-1.5">

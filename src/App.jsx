@@ -14,6 +14,7 @@ import AchievementModal from './components/modals/AchievementModal';
 import MoveBookModal from './components/modals/MoveBookModal';
 import PublicRecommendationsModal from './components/modals/PublicRecommendationsModal';
 import AIRecommendationsModal from './components/modals/AIRecommendationsModal';
+import WritingFeedbackModal from './components/modals/WritingFeedbackModal';
 import UserComparisonModal from './components/modals/UserComparisonModal';
 import AddBookModal from './components/modals/AddBookModal';
 import BookDetailsModal from './components/modals/BookDetailsModal';
@@ -101,6 +102,7 @@ export default function App() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showAIRecommendations, setShowAIRecommendations] = useState(false);
+  const [showWritingFeedback, setShowWritingFeedback] = useState(false);
   const [showPublicRecommendations, setShowPublicRecommendations] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [selectedBook, setSelectedBook] = useState(null);
@@ -376,6 +378,20 @@ export default function App() {
       if (profileError) {
         console.error('Error loading profile:', profileError);
       } else if (profileData) {
+        // Parse custom_library_buttons if it's a string
+        let customLibraryButtons = [];
+        try {
+          if (profileData.custom_library_buttons) {
+            if (typeof profileData.custom_library_buttons === 'string') {
+              customLibraryButtons = JSON.parse(profileData.custom_library_buttons);
+            } else if (Array.isArray(profileData.custom_library_buttons)) {
+              customLibraryButtons = profileData.custom_library_buttons;
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing custom_library_buttons:', e);
+        }
+
         setUserProfile({
           id: profileData.id,
           user_id: profileData.user_id,
@@ -386,7 +402,9 @@ export default function App() {
           feedback: profileData.feedback || '',
           hideFromComparison: profileData.hide_from_comparison || false,
           is_admin: profileData.is_admin || false,
-          ai_recommendations_enabled: profileData.ai_recommendations_enabled !== false // Default to true
+          ai_recommendations_enabled: profileData.ai_recommendations_enabled !== false, // Default to true
+          custom_library_buttons: customLibraryButtons,
+          age_group: profileData.age_group || ''
         });
       }
 
@@ -2127,6 +2145,9 @@ export default function App() {
         onShowAIRecommendations={() => {
           setShowAIRecommendations(true);
         }}
+        onShowWritingFeedback={() => {
+          setShowWritingFeedback(true);
+        }}
         onShowChallenges={() => setShowChallengeModal(true)}
         onShowRewards={() => setShowRewardsModal(true)}
         onShowReadingHistory={() => setShowReadingHistoryModal(true)}
@@ -2622,6 +2643,15 @@ export default function App() {
         ignoredSuggestions={ignoredSuggestions}
       />
 
+      {/* Writing Feedback Modal */}
+      <WritingFeedbackModal
+        show={showWritingFeedback}
+        userBooks={bookshelves.flatMap(shelf => shelf.books || [])}
+        userProfile={{ ...userProfile, id: currentUser?.id }}
+        currentUser={currentUser}
+        onClose={() => setShowWritingFeedback(false)}
+      />
+
 
       {/* Profile Modal */}
       <ProfileModal
@@ -2657,25 +2687,41 @@ export default function App() {
           setProfileSuccess('');
           
           try {
+            // Ensure custom_library_buttons is properly formatted as JSON
+            let customLibraryButtons = userProfile.custom_library_buttons || [];
+            if (typeof customLibraryButtons === 'string') {
+              try {
+                customLibraryButtons = JSON.parse(customLibraryButtons);
+              } catch (e) {
+                console.error('Error parsing custom_library_buttons before save:', e);
+                customLibraryButtons = [];
+              }
+            }
+            
             const result = await updateUserProfile(currentUser.id, {
               name: userProfile.name,
               monthly_target: userProfile.monthlyTarget,
               avatar: userProfile.avatar,
               bio: userProfile.bio,
               feedback: userProfile.feedback,
-              hide_from_comparison: userProfile.hideFromComparison || false
+              hide_from_comparison: userProfile.hideFromComparison || false,
+              custom_library_buttons: customLibraryButtons,
+              age_group: userProfile.age_group || null
             });
             
             if (result.error) {
               throw result.error;
             }
             
+            // Reload user profile from database to ensure state is in sync
+            await loadUserProfile();
+            
             setProfileSuccess('Profile saved successfully!');
             setTimeout(() => {
               setShowProfile(false);
               setProfileSuccess('');
               setShowAvatarSelector(false);
-            }, 1000);
+            }, 1500); // Increased timeout to allow reload to complete
           } catch (error) {
             console.error('Error saving profile:', error);
             setProfileError('Failed to save profile. Please try again.');

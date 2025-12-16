@@ -16,7 +16,9 @@ export function useUserData(currentUser) {
     avatar: '📚',
     bio: '',
     feedback: '',
-    hideFromComparison: false
+    hideFromComparison: false,
+    custom_library_buttons: [],
+    age_group: ''
   });
   const [ignoredSuggestions, setIgnoredSuggestions] = useState([]);
   const [userProfiles, setUserProfiles] = useState({});
@@ -33,6 +35,20 @@ export function useUserData(currentUser) {
       if (profileError && profileError.code !== 'PGRST116') {
         console.error('Error loading profile:', profileError);
       } else if (profileData) {
+        // Parse custom_library_buttons if it's a string
+        let customLibraryButtons = [];
+        try {
+          if (profileData.custom_library_buttons) {
+            if (typeof profileData.custom_library_buttons === 'string') {
+              customLibraryButtons = JSON.parse(profileData.custom_library_buttons);
+            } else if (Array.isArray(profileData.custom_library_buttons)) {
+              customLibraryButtons = profileData.custom_library_buttons;
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing custom_library_buttons:', e);
+        }
+
         setUserProfile({
           id: profileData.id,
           user_id: profileData.user_id,
@@ -43,7 +59,9 @@ export function useUserData(currentUser) {
           feedback: profileData.feedback || '',
           hideFromComparison: profileData.hide_from_comparison || false,
           is_admin: profileData.is_admin || false,
-          ai_recommendations_enabled: profileData.ai_recommendations_enabled !== false // Default to true
+          ai_recommendations_enabled: profileData.ai_recommendations_enabled !== false, // Default to true
+          custom_library_buttons: customLibraryButtons,
+          age_group: profileData.age_group || ''
         });
       }
       // If no profile exists, that's fine - user will create one later

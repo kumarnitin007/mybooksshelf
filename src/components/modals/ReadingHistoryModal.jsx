@@ -266,11 +266,11 @@ export default function ReadingHistoryModal({
       return { x, y, count: item.count };
     });
 
-    const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x}% ${p.y}%`).join(' ');
+    const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
 
     return (
       <div className="relative" style={{ height: `${chartHeight}px` }}>
-        <svg width="100%" height={chartHeight} className="overflow-visible">
+        <svg width="100%" height={chartHeight} viewBox="0 0 100 100" preserveAspectRatio="none" className="overflow-visible">
           <defs>
             <linearGradient id="lineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
               <stop offset="0%" stopColor="#6366f1" stopOpacity="0.3" />
@@ -280,7 +280,7 @@ export default function ReadingHistoryModal({
           {/* Area under line - only show if line connection is enabled */}
           {showLineConnection && (
             <path
-              d={`${pathData} L ${points[points.length - 1].x}% 100% L 0% 100% Z`}
+              d={`${pathData} L ${points[points.length - 1].x} 100 L 0 100 Z`}
               fill="url(#lineGradient)"
             />
           )}
@@ -290,7 +290,7 @@ export default function ReadingHistoryModal({
               d={pathData}
               fill="none"
               stroke="#6366f1"
-              strokeWidth="3"
+              strokeWidth="0.3"
               strokeLinecap="round"
               strokeLinejoin="round"
             />

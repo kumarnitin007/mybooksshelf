@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, User, ChevronUp, ChevronDown, Target, Sparkles, MessageSquare, Settings, Save, BookOpen } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, User, ChevronUp, ChevronDown, Target, Sparkles, MessageSquare, Settings, Save, BookOpen, Library, Plus, Trash2 } from 'lucide-react';
 import AvatarSelector from '../AvatarSelector';
 import { isEmailVerified } from '../../services/authService';
 import { getGenreColor } from '../../utils/genreColors';
@@ -55,9 +55,74 @@ export default function ProfileModal({
   onLogout,
   onSave
 }) {
+  const [isFeedbackExpanded, setIsFeedbackExpanded] = useState(false);
+
+  // Initialize custom library buttons from userProfile
+  const [customLibraryButtons, setCustomLibraryButtons] = useState([]);
+  const isInitializedRef = useRef(false);
+
+  // Sync customLibraryButtons when modal opens (only once per modal session)
+  useEffect(() => {
+    if (!show) {
+      isInitializedRef.current = false;
+      return;
+    }
+    
+    // Only initialize once when modal opens
+    if (!isInitializedRef.current) {
+      try {
+        if (userProfile?.custom_library_buttons) {
+          let parsed = [];
+          if (typeof userProfile.custom_library_buttons === 'string') {
+            parsed = JSON.parse(userProfile.custom_library_buttons);
+          } else if (Array.isArray(userProfile.custom_library_buttons)) {
+            parsed = userProfile.custom_library_buttons;
+          }
+          setCustomLibraryButtons(parsed);
+        } else {
+          setCustomLibraryButtons([]);
+        }
+        isInitializedRef.current = true;
+      } catch (e) {
+        console.error('Error parsing custom_library_buttons:', e);
+        setCustomLibraryButtons([]);
+        isInitializedRef.current = true;
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show]);
+
+  // Update userProfile when customLibraryButtons changes (only after initialization)
+  useEffect(() => {
+    if (!show || !userProfile || !isInitializedRef.current) return;
+    
+    // Update userProfile with current customLibraryButtons
+    setUserProfile(prev => ({
+      ...prev,
+      custom_library_buttons: customLibraryButtons
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customLibraryButtons]);
+
   if (!show) return null;
 
-  const [isFeedbackExpanded, setIsFeedbackExpanded] = useState(false);
+  const handleAddLibraryButton = () => {
+    if (customLibraryButtons.length >= 3) {
+      alert('You can add a maximum of 3 custom library buttons.');
+      return;
+    }
+    setCustomLibraryButtons([...customLibraryButtons, { name: '', url: '' }]);
+  };
+
+  const handleRemoveLibraryButton = (index) => {
+    setCustomLibraryButtons(customLibraryButtons.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateLibraryButton = (index, field, value) => {
+    const updated = [...customLibraryButtons];
+    updated[index] = { ...updated[index], [field]: value };
+    setCustomLibraryButtons(updated);
+  };
 
   const handleClose = () => {
     onClose();
@@ -170,6 +235,24 @@ export default function ProfileModal({
             <div className="text-xs text-gray-500 mt-1 text-right">
               {(userProfile.bio || '').length}/200
             </div>
+          </div>
+
+          {/* Age Group */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Age Group (Optional)
+            </label>
+            <p className="text-xs text-gray-500 mb-2">
+              📊 Enter your age or age range (e.g., "12", "12-15", "47"). This helps AI provide age-appropriate book recommendations and writing feedback tailored to your level.
+            </p>
+            <input
+              type="text"
+              value={userProfile?.age_group || ''}
+              onChange={(e) => setUserProfile({ ...userProfile, age_group: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="e.g., 12, 12-15, 47"
+              maxLength={20}
+            />
           </div>
 
           {/* Monthly Reading Target */}
@@ -418,6 +501,103 @@ export default function ProfileModal({
                 </div>
               </>
             )}
+          </div>
+
+          {/* Custom Library Buttons */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
+            <div className="flex items-center gap-3 mb-4">
+              <Library className="w-6 h-6 text-green-600" />
+              <h3 className="text-xl font-bold text-gray-900">Custom Library Buttons</h3>
+            </div>
+            
+            <p className="text-sm text-gray-600 mb-4">
+              Add up to 3 custom library buttons that will appear in the "Get the Book" section when viewing book details. These buttons will open your favorite libraries or bookstores.
+            </p>
+            
+            {/* Example URL Box */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-sm font-semibold text-blue-900 mb-2">💡 URL Examples:</p>
+              <div className="space-y-2 text-xs text-blue-800 font-mono">
+                <div>
+                  <span className="font-semibold">Search by title:</span>
+                  <div className="bg-white p-2 rounded mt-1 break-all">
+                    https://fulcolibrary.bibliocommons.com/v2/search?query={'{title}'}&searchType=title
+                  </div>
+                </div>
+                <div>
+                  <span className="font-semibold">Search by author:</span>
+                  <div className="bg-white p-2 rounded mt-1 break-all">
+                    https://fulcolibrary.bibliocommons.com/v2/search?query={'{author}'}&searchType=author
+                  </div>
+                </div>
+                <div>
+                  <span className="font-semibold">Search by title and author:</span>
+                  <div className="bg-white p-2 rounded mt-1 break-all">
+                    https://fulcolibrary.bibliocommons.com/v2/search?query={'{title}'} {'{author}'}&searchType=keyword
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-blue-700 mt-2">
+                Use <code className="bg-blue-100 px-1 rounded">{'{title}'}</code> and <code className="bg-blue-100 px-1 rounded">{'{author}'}</code> placeholders - they'll be replaced with the actual book details!
+              </p>
+            </div>
+            
+            <div className="space-y-3">
+              {customLibraryButtons.map((button, index) => (
+                <div key={index} className="bg-white rounded-lg p-4 border border-green-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-gray-700">Button {index + 1}</span>
+                    <button
+                      onClick={() => handleRemoveLibraryButton(index)}
+                      className="text-red-500 hover:text-red-700 transition-colors"
+                      title="Remove this button"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Button Name</label>
+                      <input
+                        type="text"
+                        value={button.name || ''}
+                        onChange={(e) => handleUpdateLibraryButton(index, 'name', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                        placeholder="e.g., My Local Library"
+                        maxLength={50}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">URL</label>
+                      <input
+                        type="url"
+                        value={button.url || ''}
+                        onChange={(e) => handleUpdateLibraryButton(index, 'url', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                        placeholder="https://example.com/search?q={title}"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        💡 Tip: Use {"{title}"} and {"{author}"} in the URL to automatically insert book details
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {customLibraryButtons.length < 3 && (
+                <button
+                  onClick={handleAddLibraryButton}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Library Button ({customLibraryButtons.length}/3)
+                </button>
+              )}
+              {customLibraryButtons.length === 0 && (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  No custom library buttons added yet. Click "Add Library Button" to get started!
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Privacy Settings */}

@@ -21,7 +21,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   try {
-    const { prompt, model = 'gpt-4o-mini', temperature = 0.7, max_tokens = 1500 } = req.body;
+    const { prompt, model = 'gpt-4o-mini', temperature = 0.7, max_tokens = 1500, mode = 'json' } = req.body;
 
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
@@ -41,31 +41,45 @@ export default async function handler(req, res) {
     }
 
     const trimmedKey = apiKey.trim();
-    console.log(`Making OpenAI API request (model: ${model})`);
+    console.log(`Making OpenAI API request (model: ${model}, mode: ${mode})`);
+
+    // Determine system message based on mode
+    const systemMessage = mode === 'text' 
+      ? 'You are an expert writing coach and educator. Provide detailed, constructive feedback in a clear, well-formatted manner.'
+      : mode === 'json'
+      ? 'You are an expert writing coach and educator. Always respond with valid JSON only. Do not include any text before or after the JSON object.'
+      : 'You are a helpful book recommendation assistant. Always respond with valid JSON only.';
 
     // Make request to OpenAI API
     // Vercel's serverless functions run on their infrastructure, so no proxy/SSL issues
+    const requestBody = {
+      model,
+      messages: [
+        {
+          role: 'system',
+          content: systemMessage
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature,
+      max_tokens
+    };
+
+    // Add response_format for JSON mode (required for structured JSON responses)
+    if (mode === 'json') {
+      requestBody.response_format = { type: 'json_object' };
+    }
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${trimmedKey}`
       },
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a helpful book recommendation assistant. Always respond with valid JSON only.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature,
-        max_tokens
-      })
+      body: JSON.stringify(requestBody)
     });
 
     if (!response.ok) {
@@ -91,6 +105,15 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
+    
+    // If mode is 'text', extract and return just the text content
+    if (mode === 'text' && data.choices && data.choices[0] && data.choices[0].message) {
+      return res.status(200).json({
+        text: data.choices[0].message.content,
+        usage: data.usage
+      });
+    }
+    
     return res.status(200).json(data);
   } catch (error) {
     console.error('Error proxying OpenAI request:', {

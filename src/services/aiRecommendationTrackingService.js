@@ -15,7 +15,7 @@ import { supabase } from '../config/supabase';
  * @param {string} userId - User ID
  * @param {object} requestParams - Request parameters
  * @param {array} recommendations - Generated recommendations
- * @param {object} metadata - Additional metadata (fromCache, apiKeyUsed, etc.)
+ * @param {object} metadata - Additional metadata (fromCache, apiKeyUsed, rawResponse, etc.)
  * @returns {Promise<{data: object|null, error: object|null}>}
  */
 export const saveAIRecommendationRequest = async (userId, requestParams, recommendations, metadata = {}) => {
@@ -104,7 +104,8 @@ export const saveAIRecommendationRequest = async (userId, requestParams, recomme
       from_cache: fromCache,
       tokens_used: tokensUsed,
       estimated_cost: estimatedCost,
-      cache_usage_count: null // Will be set when cache is used
+      cache_usage_count: null, // Will be set when cache is used
+      raw_ai_response: metadata.rawResponse || null // Store raw AI response if provided
     };
 
     const { data, error } = await supabase
@@ -122,6 +123,116 @@ export const saveAIRecommendationRequest = async (userId, requestParams, recomme
   } catch (error) {
     console.error('Error in saveAIRecommendationRequest:', error);
     return { data: null, error };
+  }
+};
+
+/**
+ * Save writing style feedback to database
+ * @param {string} userId - User ID
+ * @param {object} requestParams - Request parameters
+ * @param {string} feedback - Generated feedback text
+ * @returns {Promise<{data: object|null, error: object|null}>}
+ */
+export const saveWritingStyleFeedback = async (userId, requestParams, feedback) => {
+  try {
+    const {
+      booksAnalyzed = [],
+      prompt,
+      modelUsed = 'gpt-4o-mini',
+      apiKeyUsed = false,
+      tokensUsed = null,
+      estimatedCost = null,
+      rawResponse = null
+    } = requestParams;
+
+    // Store feedback in recommendations field as JSON for now
+    // Format: { type: 'writing_feedback', feedback: '...', books: [...] }
+    const feedbackRecord = {
+      type: 'writing_feedback',
+      feedback: feedback,
+      books: booksAnalyzed.map(b => ({
+        title: b.title,
+        author: b.author,
+        review_length: b.review?.length || 0
+      }))
+    };
+
+    const record = {
+      user_id: userId,
+      total_books: booksAnalyzed.length,
+      average_rating: null, // Not applicable for writing feedback
+      favorite_genres: [],
+      favorite_authors: [],
+      highly_rated_books: [],
+      reading_themes: [],
+      books_hash: null, // Not applicable
+      prompt_text: prompt,
+      model_used: modelUsed,
+      api_key_used: apiKeyUsed,
+      recommendations: [feedbackRecord], // Store feedback as first "recommendation" with type marker
+      recommendations_count: 1, // Mark as 1 to indicate feedback exists
+      from_cache: false,
+      tokens_used: tokensUsed,
+      estimated_cost: estimatedCost,
+      cache_usage_count: null,
+      raw_ai_response: rawResponse || feedback // Store raw API response if available, otherwise store feedback text
+    };
+
+    const { data, error } = await supabase
+      .from('bk_ai_recommendations')
+      .insert([record])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error saving writing feedback:', error);
+      // If the table structure doesn't support this, we might need a new table
+      // For now, just log the error but don't fail
+      console.warn('Writing feedback not saved to database. Table may need schema update.');
+      return { data: null, error };
+    }
+
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error in saveWritingStyleFeedback:', error);
+    return { data: null, error };
+  }
+};
+
+/**
+ * Get user's writing feedback history
+ * @param {string} userId - User ID
+ * @param {number} limit - Maximum number of records to return
+ * @returns {Promise<{data: array, error: object|null}>}
+ */
+export const getWritingFeedbackHistory = async (userId, limit = 20) => {
+  try {
+    const { data, error } = await supabase
+      .from('bk_ai_recommendations')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('recommendations_count', 1) // Writing feedback has count of 1
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('Error fetching writing feedback history:', error);
+      return { data: [], error };
+    }
+
+    // Filter to only return records that are actually writing feedback
+    const feedbackRecords = (data || []).filter(record => {
+      if (record.recommendations && record.recommendations.length > 0) {
+        const firstRec = record.recommendations[0];
+        return firstRec && firstRec.type === 'writing_feedback';
+      }
+      return false;
+    });
+
+    return { data: feedbackRecords, error: null };
+  } catch (error) {
+    console.error('Error in getWritingFeedbackHistory:', error);
+    return { data: [], error };
   }
 };
 

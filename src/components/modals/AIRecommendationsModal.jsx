@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Sparkles, Heart, Loader, AlertCircle, Play, BookOpen, Star, TrendingUp, Clock, Shield, History, Check, Plus, Info, Copy, FileText } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Sparkles, Heart, Loader, AlertCircle, Play, BookOpen, Star, Clock, History, Check, Plus, Info, Copy, FileText, TrendingUp } from 'lucide-react';
 import { generateAIRecommendations, estimateAICost } from '../../services/aiRecommendationService';
 import { getRateLimitStatus } from '../../services/aiRecommendationRateLimit';
 import { getAIRecommendationHistory } from '../../services/aiRecommendationTrackingService';
@@ -48,7 +48,13 @@ export default function AIRecommendationsModal({
   const [showPrompt, setShowPrompt] = useState(false);
   const [promptText, setPromptText] = useState('');
 
+  // Track if modal was previously open to detect when it first opens
+  const prevShowRef = useRef(false);
+
   useEffect(() => {
+    const isFirstOpen = show && !prevShowRef.current;
+    prevShowRef.current = show;
+
     if (show) {
       // Check if user has AI recommendations access
       // Default to true if not set (for backward compatibility)
@@ -65,21 +71,32 @@ export default function AIRecommendationsModal({
       const wishlistShelf = bookshelves.find(shelf => shelf.type === 'wishlist');
       const wishlistBookIds = wishlistShelf ? new Set(wishlistShelf.books.map(b => b.id)) : new Set();
       
-      // Filter: Only books with 4+ star rating AND not in wishlist
+      // Filter: Only books with 4+ star rating AND not in wishlist (for recommendations)
       const eligibleBooks = userBooks.filter(b => 
         b.rating >= 4 && !wishlistBookIds.has(b.id)
       );
       setAvailableBooks(eligibleBooks);
       
-      // Initialize selected books - select all by default
-      const initialSelected = new Set(eligibleBooks.map((book, idx) => idx));
-      setSelectedBooks(initialSelected);
-      
-      setShowBookSelection(true);
-      setShowParameters(false);
+      // Only reset state when modal first opens, not on every userBooks/bookshelves change
+      if (isFirstOpen) {
+        // Initialize selected books - select all by default
+        const initialSelected = new Set(eligibleBooks.map((book, idx) => idx));
+        setSelectedBooks(initialSelected);
+        
+        // Show book selection first
+        setShowBookSelection(true);
+        setShowParameters(false);
       setRecommendations([]);
       setError(null);
       setFromCache(false);
+      } else {
+        // Modal is already open, just update the available books list
+        // Preserve current selections
+        if (selectedBooks.size === 0 && eligibleBooks.length > 0) {
+          const initialSelected = new Set(eligibleBooks.map((book, idx) => idx));
+          setSelectedBooks(initialSelected);
+        }
+      }
       
       // Get rate limit status if we have user ID
       const userId = userProfile?.id || currentUser?.id;
@@ -98,7 +115,7 @@ export default function AIRecommendationsModal({
       setRateLimitStatus(null);
       setFromCache(false);
     }
-  }, [show, userBooks, userProfile, bookshelves]);
+  }, [show, userBooks, userProfile, bookshelves, currentUser]);
 
   const buildPromptForDisplay = (readingAnalysis) => {
     const MAX_FIELD_CHARS = 200;
@@ -113,6 +130,12 @@ export default function AIRecommendationsModal({
     prompt += `User's Reading Profile:\n`;
     prompt += `- Total books read: ${readingAnalysis.totalBooks}\n`;
     prompt += `- Average rating: ${readingAnalysis.averageRating}/5\n`;
+    
+    // Include age group if available for age-appropriate recommendations
+    if (userProfile && userProfile.age_group && userProfile.age_group.trim()) {
+      prompt += `- Age group: ${userProfile.age_group}\n`;
+      prompt += `Please consider age-appropriate content and reading level when making recommendations.\n`;
+    }
     
     if (readingAnalysis.favoriteGenres.length > 0) {
       prompt += `- Favorite genres: ${readingAnalysis.favoriteGenres.join(', ')}\n`;
@@ -422,98 +445,14 @@ export default function AIRecommendationsModal({
         </div>
 
         <div className="p-6">
-          {showHistory ? (
-            <div>
-              {loadingHistory ? (
-                <div className="text-center py-12">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mb-4"></div>
-                  <p className="text-gray-600 font-medium">Loading your recommendation history... 📚</p>
-                </div>
-              ) : history.length === 0 ? (
-                <div className="text-center py-12">
-                  <History className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-700 font-medium mb-2">No past recommendations yet! 🎯</p>
-                  <p className="text-sm text-gray-600">Generate your first AI recommendations to see them here! Once you create some, you can come back and view them anytime! ✨</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {history.map((record) => (
-                    <div key={record.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <Clock className="w-4 h-4 text-gray-500" />
-                            <span className="text-sm font-semibold text-gray-900">
-                              {new Date(record.created_at).toLocaleString()}
-                            </span>
-                            {record.from_cache && (
-                              <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs font-medium">
-                                Cached
-                              </span>
-                            )}
-                            {record.api_key_used && (
-                              <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-medium">
-                                Paid API
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-gray-600 space-y-1">
-                            {record.total_books > 0 && <span>📚 {record.total_books} books analyzed</span>}
-                            {record.average_rating && <span> • ⭐ {record.average_rating}/5 avg</span>}
-                            {record.favorite_genres?.length > 0 && (
-                              <span> • 📖 {record.favorite_genres.join(', ')}</span>
-                            )}
-                          </div>
-                        </div>
-                        {record.estimated_cost && (
-                          <span className="text-xs text-gray-500">
-                            ${parseFloat(record.estimated_cost).toFixed(4)}
-                          </span>
-                        )}
-                      </div>
-                      
-                      {record.recommendations && record.recommendations.length > 0 && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-                          {record.recommendations.slice(0, 4).map((rec, idx) => (
-                            <div key={idx} className="bg-white rounded p-2 border border-gray-100">
-                              <p className="text-xs font-semibold text-gray-900 line-clamp-1">{rec.title}</p>
-                              {rec.author && <p className="text-xs text-gray-600">by {rec.author}</p>}
-                            </div>
-                          ))}
-                          {record.recommendations.length > 4 && (
-                            <div className="bg-white rounded p-2 border border-gray-100 flex items-center justify-center">
-                              <span className="text-xs text-gray-500">
-                                +{record.recommendations.length - 4} more
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      
-                      <button
-                        onClick={() => {
-                          if (record.recommendations && record.recommendations.length > 0) {
-                            setRecommendations(record.recommendations);
-                            setShowHistory(false);
-                            setShowParameters(false);
-                          }
-                        }}
-                        className="mt-3 w-full py-2 px-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
-                      >
-                        View These Recommendations
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : showBookSelection ? (
+          {/* Book Selection Screen */}
+          {showBookSelection && !showHistory && (
             <div className="space-y-6">
               <div className="text-center">
                 <BookOpen className="w-16 h-16 text-purple-600 mx-auto mb-4" />
                 <h3 className="text-xl font-bold text-gray-900 mb-2">Select Books used for AI Recommendations</h3>
                 <p className="text-gray-600">Choose which books from your bookshelf should be used for AI recommendations.</p>
-              </div>
+                </div>
 
               {availableBooks.length === 0 ? (
                 <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
@@ -525,7 +464,7 @@ export default function AIRecommendationsModal({
                 <>
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                     <div className="flex items-center justify-between">
-                      <div>
+                        <div>
                         <p className="text-sm font-semibold text-blue-900">
                           {selectedBooks.size} of {availableBooks.length} books selected
                         </p>
@@ -553,18 +492,19 @@ export default function AIRecommendationsModal({
                     </div>
                   </div>
 
-                  <div className="max-h-96 overflow-y-auto space-y-2 border border-gray-200 rounded-lg p-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto mb-6">
                     {availableBooks.map((book, idx) => (
-                      <div
-                        key={idx}
-                        className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer ${
-                          selectedBooks.has(idx)
-                            ? 'bg-purple-50 border-purple-300'
-                            : 'bg-white border-gray-200 hover:border-gray-300'
-                        }`}
-                        onClick={() => {
+                      <label
+                        key={book.id || idx}
+                        className="flex items-start gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all hover:shadow-md"
+                        style={{
+                          borderColor: selectedBooks.has(idx) ? '#9333ea' : '#e5e7eb',
+                          backgroundColor: selectedBooks.has(idx) ? '#faf5ff' : 'white'
+                        }}
+                        onClick={(e) => {
+                          if (e.target.type === 'checkbox') return;
                           const newSelected = new Set(selectedBooks);
-                          if (newSelected.has(idx)) {
+                          if (selectedBooks.has(idx)) {
                             newSelected.delete(idx);
                           } else {
                             newSelected.add(idx);
@@ -595,15 +535,17 @@ export default function AIRecommendationsModal({
                           {book.genre && (
                             <p className="text-xs text-gray-500 mt-1">{book.genre}</p>
                           )}
-                        </div>
-                        <div className="flex items-center gap-1 text-yellow-600 flex-shrink-0">
-                          <Star className="w-4 h-4 fill-current" />
-                          <span className="font-semibold text-sm">{book.rating}/5</span>
-                        </div>
-                      </div>
+                          {book.rating && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                              <span className="text-xs text-gray-600">{book.rating}/5</span>
+                          </div>
+                            )}
+                          </div>
+                      </label>
                     ))}
-                  </div>
-
+                      </div>
+                      
                   {/* Fun warning note about filtering - moved to bottom after books list */}
                   <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-4 mt-4">
                     <div className="flex items-start gap-2">
@@ -613,12 +555,12 @@ export default function AIRecommendationsModal({
                         <p className="text-xs text-purple-800">
                           We only show your <strong>4 and 5 star favorites</strong> here (and skip wishlist books) because we want to learn what you <em>loved</em> reading! This helps our AI suggest books that'll make you go "wow, this is perfect for me!" 🎯
                         </p>
-                      </div>
-                    </div>
-                  </div>
-
+                            </div>
+                            </div>
+                        </div>
+                      
                   <div className="flex gap-3 justify-center">
-                    <button
+                      <button
                       onClick={onClose}
                       className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
                     >
@@ -631,12 +573,15 @@ export default function AIRecommendationsModal({
                     >
                       Review & Generate
                       <Play className="w-5 h-5" />
-                    </button>
-                  </div>
+                      </button>
+                    </div>
                 </>
               )}
             </div>
-          ) : showParameters && !isLoading && recommendations.length === 0 ? (
+          )}
+
+          {/* Parameters Review Screen */}
+          {showParameters && !showHistory && (
             <div className="space-y-6">
               <div className="text-center">
                 <Sparkles className="w-16 h-16 text-purple-600 mx-auto mb-4" />
@@ -673,7 +618,7 @@ export default function AIRecommendationsModal({
                     {analysis.favoriteGenres.length > 0 && (
                       <div className="bg-white rounded-lg p-4 border border-purple-100">
                         <div className="flex items-center gap-2 mb-2">
-                          <TrendingUp className="w-4 h-4 text-blue-600" />
+                          <Sparkles className="w-4 h-4 text-blue-600" />
                           <span className="font-semibold text-gray-900">Favorite Genres</span>
                         </div>
                         <div className="flex flex-wrap gap-2 mt-2">
@@ -725,6 +670,19 @@ export default function AIRecommendationsModal({
                     </div>
                   )}
 
+                  {userProfile?.age_group && userProfile.age_group.trim() && (
+                    <div className="mt-4 bg-white rounded-lg p-4 border border-purple-100">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles className="w-4 h-4 text-green-600" />
+                        <h5 className="font-semibold text-gray-900">Age Group</h5>
+                      </div>
+                      <p className="text-gray-700 text-sm font-medium bg-green-50 p-3 rounded border border-green-100">
+                        {userProfile.age_group}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-2">Used for age-appropriate recommendations</p>
+                    </div>
+                  )}
+
                   {userProfile?.bio && userProfile.bio.trim() && (
                     <div className="mt-4 bg-white rounded-lg p-4 border border-purple-100">
                       <div className="flex items-center gap-2 mb-2">
@@ -743,7 +701,7 @@ export default function AIRecommendationsModal({
               {costEstimate && tokenEstimate && (
                 <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 mb-4">
                   <h5 className="font-semibold text-green-900 mb-3 flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5" />
+                    <Sparkles className="w-5 h-5" />
                     Cost & Token Estimate
                   </h5>
                   <div className="grid grid-cols-2 gap-4">
@@ -837,55 +795,98 @@ export default function AIRecommendationsModal({
                 </button>
               </div>
             </div>
-          ) : isLoading ? (
+          )}
+
+          {showHistory && (
+            <div>
+              {loadingHistory ? (
             <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mb-4"></div>
-              <p className="text-gray-700 font-medium mb-2">✨ Analyzing your reading patterns...</p>
-              <p className="text-sm text-gray-600">Our AI is working its magic to find your perfect next reads! This might take a moment! 🎯</p>
-              {analysis && (
-                <div className="mt-6 p-4 bg-purple-50 rounded-lg text-left max-w-md mx-auto">
-                  <p className="text-sm font-semibold text-purple-900 mb-2">Your Reading Profile:</p>
-                  <ul className="text-xs text-purple-700 space-y-1">
-                    <li>📚 {analysis.totalBooks} selected books</li>
-                    <li>⭐ Average rating: {analysis.averageRating}/5</li>
-                    {analysis.favoriteGenres.length > 0 && (
-                      <li>📖 Favorite genres: {analysis.favoriteGenres.join(', ')}</li>
-                    )}
-                    {analysis.favoriteAuthors.length > 0 && (
-                      <li>✍️ Favorite authors: {analysis.favoriteAuthors.join(', ')}</li>
-                    )}
-                  </ul>
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mb-4"></div>
+                  <p className="text-gray-600 font-medium">Loading your recommendation history... 📚</p>
                 </div>
+              ) : history.length === 0 ? (
+                <div className="text-center py-12">
+                  <History className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-700 font-medium mb-2">No past recommendations yet! 🎯</p>
+                  <p className="text-sm text-gray-600">Generate your first AI recommendations to see them here! Once you create some, you can come back and view them anytime! ✨</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {history.map((record) => (
+                    <div key={record.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <Clock className="w-4 h-4 text-gray-500" />
+                            <span className="text-sm font-semibold text-gray-900">
+                              {new Date(record.created_at).toLocaleString()}
+                            </span>
+                            {record.from_cache && (
+                              <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs font-medium">
+                                Cached
+                              </span>
+                            )}
+                            {record.api_key_used && (
+                              <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                                Paid API
+                              </span>
+                            )}
+                </div>
+                          <div className="text-xs text-gray-600 space-y-1">
+                            {record.total_books > 0 && <span>📚 {record.total_books} books analyzed</span>}
+                            {record.average_rating && <span> • ⭐ {record.average_rating}/5 avg</span>}
+                            {record.favorite_genres?.length > 0 && (
+                              <span> • 📖 {record.favorite_genres.join(', ')}</span>
               )}
             </div>
-          ) : error ? (
-            <div className="text-center py-12">
-              <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-              <p className="text-red-600 font-semibold mb-2">Error Generating Recommendations</p>
-              <p className="text-sm text-gray-600 mb-4">{error}</p>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md mx-auto text-left">
-                <p className="text-sm font-semibold text-yellow-900 mb-2">💡 Tip:</p>
-                <p className="text-xs text-yellow-800">
-                  For local development: Add your OpenAI API key to <code className="bg-yellow-100 px-1 rounded">.env</code> as <code className="bg-yellow-100 px-1 rounded">VITE_OPENAI_API_KEY</code>. For production: Add <code className="bg-yellow-100 px-1 rounded">OPENAI_API_KEY</code> in Vercel environment variables.
-                </p>
-                <p className="text-xs text-yellow-800 mt-2">
-                  The system will use fallback recommendations if no API key is configured.
-                </p>
               </div>
+                        {record.estimated_cost && (
+                          <span className="text-xs text-gray-500">
+                            ${parseFloat(record.estimated_cost).toFixed(4)}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {record.recommendations && record.recommendations.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                          {record.recommendations.slice(0, 4).map((rec, idx) => (
+                            <div key={idx} className="bg-white rounded p-2 border border-gray-100">
+                              <p className="text-xs font-semibold text-gray-900 line-clamp-1">{rec.title}</p>
+                              {rec.author && <p className="text-xs text-gray-600">by {rec.author}</p>}
+                            </div>
+                          ))}
+                          {record.recommendations.length > 4 && (
+                            <div className="bg-white rounded p-2 border border-gray-100 flex items-center justify-center">
+                              <span className="text-xs text-gray-500">
+                                +{record.recommendations.length - 4} more
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
               <button
-                onClick={loadAIRecommendations}
-                className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                Try Again
+                        onClick={() => {
+                          if (record.recommendations && record.recommendations.length > 0) {
+                            setRecommendations(record.recommendations);
+                            setShowHistory(false);
+                            setShowParameters(false);
+                            setShowBookSelection(false);
+                            setFromCache(record.from_cache || false);
+                          }
+                        }}
+                        className="mt-3 w-full py-2 px-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                      >
+                        View These Recommendations
               </button>
             </div>
-          ) : recommendations.length === 0 ? (
-            <div className="text-center py-12">
-              <Sparkles className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-600">No recommendations available.</p>
-              <p className="text-sm text-gray-500 mt-2">Try rating some books to get personalized recommendations!</p>
+                  ))}
             </div>
-          ) : (
+              )}
+            </div>
+          )}
+
+          {recommendations.length > 0 && !showHistory && !showBookSelection && !showParameters && (
             <>
               {fromCache && (
                 <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
@@ -913,11 +914,10 @@ export default function AIRecommendationsModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {recommendations
                   .filter(rec => {
-                    // Filter out ignored suggestions (double-check in case they weren't filtered earlier)
                     const key = `${rec.title}|${rec.author || 'Unknown Author'}`;
                     return !ignoredSuggestions.includes(key);
                   })
-                  .sort((a, b) => (b.score || 0) - (a.score || 0)) // Sort by score (highest first)
+                  .sort((a, b) => (b.score || 0) - (a.score || 0))
                   .map((rec, index) => (
                   <div
                     key={index}
@@ -1002,7 +1002,6 @@ export default function AIRecommendationsModal({
                         <button
                           onClick={() => {
                             onIgnore(rec.title, rec.author || 'Unknown Author');
-                            // Remove from local recommendations immediately
                             setRecommendations(recommendations.filter((r) => {
                               const rKey = `${r.title}|${r.author || 'Unknown Author'}`;
                               const recKey = `${rec.title}|${rec.author || 'Unknown Author'}`;
@@ -1041,6 +1040,37 @@ export default function AIRecommendationsModal({
                 </button>
               </div>
             </>
+          )}
+
+          {error && !showHistory && (
+            <div className="text-center py-12">
+              <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+              <p className="text-red-600 font-semibold mb-2">Error Generating Recommendations</p>
+              <p className="text-sm text-gray-600 mb-4">{error}</p>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md mx-auto text-left">
+                <p className="text-sm font-semibold text-yellow-900 mb-2">💡 Tip:</p>
+                <p className="text-xs text-yellow-800">
+                  For local development: Add your OpenAI API key to <code className="bg-yellow-100 px-1 rounded">.env</code> as <code className="bg-yellow-100 px-1 rounded">VITE_OPENAI_API_KEY</code>. For production: Add <code className="bg-yellow-100 px-1 rounded">OPENAI_API_KEY</code> in Vercel environment variables.
+                </p>
+                <p className="text-xs text-yellow-800 mt-2">
+                  The system will use fallback recommendations if no API key is configured.
+                </p>
+        </div>
+              <button
+                onClick={loadAIRecommendations}
+                className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          )}
+
+          {!isLoading && !error && recommendations.length === 0 && !showHistory && !showParameters && !showBookSelection && (
+            <div className="text-center py-12">
+              <Sparkles className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-600">No recommendations available.</p>
+              <p className="text-sm text-gray-500 mt-2">Try rating some books to get personalized recommendations!</p>
+            </div>
           )}
         </div>
       </div>
