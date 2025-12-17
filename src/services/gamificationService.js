@@ -20,6 +20,21 @@ export const getUserXP = async (userId) => {
       return { data: null, error: { message: 'User ID is required' } };
     }
 
+    // Check if user is authenticated before making database calls
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      // No authenticated session - return default values silently (expected for unauthenticated users)
+      return { 
+        data: {
+          user_id: userId,
+          total_xp: 0,
+          current_level: 1,
+          xp_to_next_level: 100
+        }, 
+        error: null 
+      };
+    }
+
     const { data, error } = await supabase
       .from('bk_user_xp')
       .select('*')
@@ -41,10 +56,9 @@ export const getUserXP = async (userId) => {
 
       // If RLS policy blocks insert, return default values instead of error
       if (createError) {
-        // Check if it's an RLS policy error (42501)
-        if (createError.code === '42501') {
-          console.warn('RLS policy blocks XP creation. Please run fix_user_xp_rls.sql');
-          // Return default XP data instead of failing
+        // Check if it's an RLS policy error (42501) or unauthorized (401)
+        if (createError.code === '42501' || createError.code === 'PGRST301' || createError.status === 401) {
+          // Return default XP data silently (expected when user is not authenticated)
           return { 
             data: {
               user_id: userId,
@@ -60,13 +74,38 @@ export const getUserXP = async (userId) => {
       return { data: newData, error: null };
     }
 
-    // If there was an error other than "not found", throw it
+    // If there was an error other than "not found", check if it's auth-related
     if (error && error.code !== 'PGRST116') {
+      // If it's an auth error, return default values silently
+      if (error.code === 'PGRST301' || error.status === 401) {
+        return { 
+          data: {
+            user_id: userId,
+            total_xp: 0,
+            current_level: 1,
+            xp_to_next_level: 100
+          }, 
+          error: null 
+        };
+      }
       throw error;
     }
 
     return { data, error: null };
   } catch (error) {
+    // If it's an auth error (401/unauthorized), return default values silently (expected for unauthenticated users)
+    if (error.status === 401 || error.code === 'PGRST301' || error.message?.includes('Unauthorized')) {
+      return { 
+        data: {
+          user_id: userId,
+          total_xp: 0,
+          current_level: 1,
+          xp_to_next_level: 100
+        }, 
+        error: null 
+      };
+    }
+    // Only log non-auth errors
     console.error('Error getting user XP:', error);
     // Return default values on error to prevent app crashes
     return { 
@@ -76,7 +115,7 @@ export const getUserXP = async (userId) => {
         current_level: 1,
         xp_to_next_level: 100
       }, 
-      error 
+      error: null 
     };
   }
 };
@@ -146,6 +185,21 @@ export const getUserStreak = async (userId) => {
       return { data: null, error: { message: 'User ID is required' } };
     }
 
+    // Check if user is authenticated before making database calls
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      // No authenticated session - return default values silently (expected for unauthenticated users)
+      return { 
+        data: {
+          user_id: userId,
+          current_streak: 0,
+          longest_streak: 0,
+          last_reading_date: null
+        }, 
+        error: null 
+      };
+    }
+
     const { data, error } = await supabase
       .from('bk_reading_streaks')
       .select('*')
@@ -167,10 +221,9 @@ export const getUserStreak = async (userId) => {
 
       // If RLS policy blocks insert, return default values instead of error
       if (createError) {
-        // Check if it's an RLS policy error (42501)
-        if (createError.code === '42501') {
-          console.warn('RLS policy blocks streak creation. Please run fix_reading_streaks_rls.sql');
-          // Return default streak data instead of failing
+        // Check if it's an RLS policy error (42501) or unauthorized (401)
+        if (createError.code === '42501' || createError.code === 'PGRST301' || createError.status === 401) {
+          // Return default streak data silently (expected when user is not authenticated)
           return { 
             data: {
               user_id: userId,
@@ -186,13 +239,38 @@ export const getUserStreak = async (userId) => {
       return { data: newData, error: null };
     }
 
-    // If there was an error other than "not found", throw it
+    // If there was an error other than "not found", check if it's auth-related
     if (error && error.code !== 'PGRST116') {
+      // If it's an auth error, return default values silently
+      if (error.code === 'PGRST301' || error.status === 401) {
+        return { 
+          data: {
+            user_id: userId,
+            current_streak: 0,
+            longest_streak: 0,
+            last_reading_date: null
+          }, 
+          error: null 
+        };
+      }
       throw error;
     }
 
     return { data, error: null };
   } catch (error) {
+    // If it's an auth error (401/unauthorized), return default values silently (expected for unauthenticated users)
+    if (error.status === 401 || error.code === 'PGRST301' || error.message?.includes('Unauthorized')) {
+      return { 
+        data: {
+          user_id: userId,
+          current_streak: 0,
+          longest_streak: 0,
+          last_reading_date: null
+        }, 
+        error: null 
+      };
+    }
+    // Only log non-auth errors
     console.error('Error getting user streak:', error);
     // Return default values on error to prevent app crashes
     return { 
@@ -202,7 +280,7 @@ export const getUserStreak = async (userId) => {
         longest_streak: 0,
         last_reading_date: null
       }, 
-      error 
+      error: null 
     };
   }
 };
