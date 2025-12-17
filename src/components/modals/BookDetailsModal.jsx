@@ -321,6 +321,21 @@ export default function BookDetailsModal({
           </div>
 
           <div className="mb-4">
+            <label className={`block font-semibold ${theme.colors.accent} mb-2`}>
+              Review ✨ (Helps AI find your perfect reads!)
+            </label>
+            <p className="text-xs text-gray-500 mb-2">
+              🎯 Share your thoughts about what you loved (or didn't) about this book! Our AI analyzes your reviews to understand your reading preferences and suggest books that match your taste and interests.
+            </p>
+            <textarea
+              value={localBook?.review || selectedBook.review || ''}
+              onChange={(e) => handleUpdate({ review: e.target.value })}
+              className={`w-full px-4 py-2 border-2 ${theme.colors.secondary} rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24`}
+              placeholder="Your review of the book"
+            />
+          </div>
+
+          <div className="mb-4">
             <h3 className={`font-semibold ${theme.colors.accent} mb-2`}>Scene Summary</h3>
             <textarea
               value={localBook?.sceneSummary || selectedBook.sceneSummary || ''}
@@ -337,21 +352,6 @@ export default function BookDetailsModal({
               onChange={(e) => handleUpdate({ memorableMoments: e.target.value })}
               className={`w-full px-4 py-2 border-2 ${theme.colors.secondary} rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24`}
               placeholder="Memorable moments from the book"
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className={`block font-semibold ${theme.colors.accent} mb-2`}>
-              Review ✨ (Helps AI find your perfect reads!)
-            </label>
-            <p className="text-xs text-gray-500 mb-2">
-              🎯 Share your thoughts about what you loved (or didn't) about this book! Our AI analyzes your reviews to understand your reading preferences and suggest books that match your taste and interests.
-            </p>
-            <textarea
-              value={localBook?.review || selectedBook.review || ''}
-              onChange={(e) => handleUpdate({ review: e.target.value })}
-              className={`w-full px-4 py-2 border-2 ${theme.colors.secondary} rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24`}
-              placeholder="Your review of the book"
             />
           </div>
 

@@ -68,19 +68,56 @@ export default function RewardsModal({
     return rewardTypes[rewardType] || rewardTypes.default;
   };
 
-  const filteredRewards = rewards.filter(reward => {
-    if (filter === 'unlocked') return reward.unlocked_at;
-    if (filter === 'locked') return !reward.unlocked_at;
-    return true;
-  });
+  // Helper functions for milestone names and emojis
+  const getBookMilestoneName = (count) => {
+    const names = {
+      1: 'First Steps',
+      5: 'Getting Started',
+      10: 'Bookworm',
+      25: 'Avid Reader',
+      50: 'Book Master',
+      100: 'Legendary Reader',
+      200: 'Reading Champion'
+    };
+    return names[count] || `Read ${count} Books`;
+  };
 
-  // Group rewards by type
-  const rewardsByType = filteredRewards.reduce((acc, reward) => {
-    const type = reward.reward_type || 'default';
-    if (!acc[type]) acc[type] = [];
-    acc[type].push(reward);
-    return acc;
-  }, {});
+  const getBookMilestoneEmoji = (count) => {
+    const emojis = {
+      1: '🌱',
+      5: '📖',
+      10: '📚',
+      25: '🌟',
+      50: '👑',
+      100: '🏆',
+      200: '💎'
+    };
+    return emojis[count] || '📚';
+  };
+
+  const getChallengeMilestoneName = (count) => {
+    const names = {
+      1: 'Challenge Starter',
+      3: 'Challenge Enthusiast',
+      5: 'Challenge Master',
+      10: 'Challenge Champion',
+      20: 'Challenge Legend',
+      50: 'Ultimate Challenger'
+    };
+    return names[count] || `Complete ${count} Challenges`;
+  };
+
+  const getChallengeMilestoneEmoji = (count) => {
+    const emojis = {
+      1: '🎯',
+      3: '🏅',
+      5: '👑',
+      10: '🏆',
+      20: '⭐',
+      50: '💎'
+    };
+    return emojis[count] || '🎯';
+  };
 
   // Calculate upcoming rewards based on current stats
   const getUpcomingRewards = () => {
@@ -185,57 +222,41 @@ export default function RewardsModal({
     return upcoming.slice(0, 3); // Show top 3 upcoming
   };
 
-  const getBookMilestoneName = (count) => {
-    const names = {
-      1: 'First Steps',
-      5: 'Getting Started',
-      10: 'Bookworm',
-      25: 'Avid Reader',
-      50: 'Book Master',
-      100: 'Legendary Reader',
-      200: 'Reading Champion'
-    };
-    return names[count] || `Read ${count} Books`;
-  };
-
-  const getBookMilestoneEmoji = (count) => {
-    const emojis = {
-      1: '🌱',
-      5: '📖',
-      10: '📚',
-      25: '🌟',
-      50: '👑',
-      100: '🏆',
-      200: '💎'
-    };
-    return emojis[count] || '📚';
-  };
-
-  const getChallengeMilestoneName = (count) => {
-    const names = {
-      1: 'Challenge Starter',
-      3: 'Challenge Enthusiast',
-      5: 'Challenge Master',
-      10: 'Challenge Champion',
-      20: 'Challenge Legend',
-      50: 'Ultimate Challenger'
-    };
-    return names[count] || `Complete ${count} Challenges`;
-  };
-
-  const getChallengeMilestoneEmoji = (count) => {
-    const emojis = {
-      1: '🎯',
-      3: '🏅',
-      5: '👑',
-      10: '🏆',
-      20: '⭐',
-      50: '💎'
-    };
-    return emojis[count] || '🎯';
-  };
-
+  // Calculate upcoming rewards first (needed for filtering)
   const upcomingRewards = getUpcomingRewards();
+
+  // For locked tab, include both database rewards and upcoming rewards (since upcoming are technically locked)
+  const getFilteredRewards = () => {
+    if (filter === 'unlocked') {
+      return rewards.filter(reward => reward.unlocked_at);
+    }
+    if (filter === 'locked') {
+      // Include database rewards that are locked
+      const lockedDbRewards = rewards.filter(reward => !reward.unlocked_at);
+      // Also include upcoming rewards as they represent locked rewards user can work towards
+      const upcomingAsLocked = upcomingRewards.map((upcoming, idx) => ({
+        id: `upcoming-${idx}`,
+        reward_type: upcoming.type,
+        reward_name: upcoming.name,
+        description: upcoming.description,
+        unlocked_at: null,
+        isUpcoming: true, // Flag to identify upcoming rewards
+        upcomingData: upcoming // Store the progress data
+      }));
+      return [...lockedDbRewards, ...upcomingAsLocked];
+    }
+    return rewards;
+  };
+
+  const filteredRewards = getFilteredRewards();
+
+  // Group rewards by type
+  const rewardsByType = filteredRewards.reduce((acc, reward) => {
+    const type = reward.reward_type || 'default';
+    if (!acc[type]) acc[type] = [];
+    acc[type].push(reward);
+    return acc;
+  }, {});
 
   if (!show) return null;
 
@@ -395,7 +416,7 @@ export default function RewardsModal({
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              Locked ({rewards.filter(r => !r.unlocked_at).length})
+              Locked ({rewards.filter(r => !r.unlocked_at).length + upcomingRewards.length})
             </button>
           </div>
 
@@ -434,6 +455,7 @@ export default function RewardsModal({
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {typeRewards.map((reward) => {
                         const isUnlocked = !!reward.unlocked_at;
+                        const isUpcoming = reward.isUpcoming;
                         const handleRewardClick = () => {
                           if (isUnlocked) {
                             setSelectedReward(reward);
@@ -453,13 +475,15 @@ export default function RewardsModal({
                           >
                             <div className="flex items-start justify-between mb-2">
                               <div className="flex items-center gap-2 flex-1">
-                                <span className="text-2xl">{reward.reward_emoji || '🎁'}</span>
+                                <span className="text-2xl">{reward.reward_emoji || reward.upcomingData?.emoji || '🎁'}</span>
                                 <div className="flex-1">
                                   <h4 className={`font-bold ${isUnlocked ? 'text-gray-900' : 'text-gray-500'}`}>
-                                    {reward.reward_name || 'Unnamed Reward'}
+                                    {reward.reward_name || reward.upcomingData?.name || 'Unnamed Reward'}
                                   </h4>
-                                  {reward.reward_description && (
-                                    <p className="text-xs text-gray-600 mt-1">{reward.reward_description}</p>
+                                  {(reward.reward_description || reward.upcomingData?.description) && (
+                                    <p className="text-xs text-gray-600 mt-1">
+                                      {reward.reward_description || reward.upcomingData?.description}
+                                    </p>
                                   )}
                                 </div>
                                 {isUnlocked ? (
@@ -469,6 +493,21 @@ export default function RewardsModal({
                                 )}
                               </div>
                             </div>
+                            {/* Show progress for upcoming rewards */}
+                            {isUpcoming && reward.upcomingData && (
+                              <div className="mt-3 space-y-1">
+                                <div className="flex justify-between text-xs text-gray-600">
+                                  <span>Progress: {reward.upcomingData.current} / {reward.upcomingData.target}</span>
+                                  <span>{reward.upcomingData.progress}%</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                                  <div
+                                    className="h-full bg-gradient-to-r from-green-500 to-emerald-500 rounded-full transition-all"
+                                    style={{ width: `${reward.upcomingData.progress}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
                             {reward.reward_value && (
                               <div className="text-xs text-gray-500 mb-2 bg-gray-50 rounded px-2 py-1 inline-block">
                                 Milestone: {reward.reward_value}

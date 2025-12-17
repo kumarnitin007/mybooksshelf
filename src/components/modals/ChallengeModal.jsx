@@ -20,7 +20,10 @@ export default function ChallengeModal({
   onChallengeCreated
 }) {
   const [challenges, setChallenges] = useState([]);
+  const [closedChallenges, setClosedChallenges] = useState([]);
+  const [activeTab, setActiveTab] = useState('active'); // 'active' or 'closed'
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingClosed, setIsLoadingClosed] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedChallenge, setSelectedChallenge] = useState(null);
@@ -67,6 +70,22 @@ export default function ChallengeModal({
     };
   }, [show, currentUser]);
 
+  const handleTabChange = async (tab) => {
+    setActiveTab(tab);
+    
+    // When user clicks Closed tab, load detailed data (profiles & progress) for closed challenges
+    // The challenges themselves are already loaded, but we haven't loaded their user profiles and progress yet
+    if (tab === 'closed' && closedChallenges.length > 0) {
+      // Check if we've already loaded the detailed data by checking if any closed challenge has progress data
+      const hasLoadedData = closedChallenges.some(c => challengeUserProgress[c.id]);
+      
+      if (!hasLoadedData) {
+        // Load user profiles and progress data for closed challenges (lazy loading)
+        await loadClosedChallengesData(closedChallenges);
+      }
+    }
+  };
+
   const loadChallenges = async () => {
     if (!currentUser) return;
     setIsLoading(true);
@@ -75,11 +94,63 @@ export default function ChallengeModal({
       if (error) {
         console.error('Error loading challenges:', error);
       } else {
-        setChallenges(data || []);
+        // TODO: Enhance closed challenges evaluation to persist status in DB
+        // Instead of evaluating every time on load, persist is_closed status in database
+        // when a challenge is evaluated as closed. Next time onwards, only evaluate
+        // non-closed challenges. This will improve performance and reduce redundant date calculations.
+        // Steps:
+        // 1. Add is_closed boolean field to bk_reading_challenges table
+        // 2. When a challenge is evaluated as closed, update is_closed = true in DB
+        // 3. Filter out challenges where is_closed = true before evaluation
+        // 4. Only evaluate challenges where is_closed = false or null
+        // 5. Consider adding a scheduled job/function to mark challenges as closed daily
         
-        // Load profiles for all shared users across all challenges
+        // Separate active and closed challenges
+        const allChallenges = data || [];
+        const active = [];
+        const closed = [];
+        
+        // Helper functions for date comparison (defined inline to avoid hoisting issues)
+        const isChallengeActiveCheck = (challenge) => {
+          if (challenge.is_completed) return false;
+          const now = new Date();
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const start = new Date(challenge.start_date);
+          const startOfStartDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+          const end = new Date(challenge.end_date);
+          const endOfEndDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+          endOfEndDay.setDate(endOfEndDay.getDate() + 1);
+          return today >= startOfStartDay && today < endOfEndDay;
+        };
+        
+        const isChallengeExpiredCheck = (challenge) => {
+          if (challenge.is_completed) return false;
+          const now = new Date();
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const end = new Date(challenge.end_date);
+          const endOfEndDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+          endOfEndDay.setDate(endOfEndDay.getDate() + 1);
+          return today >= endOfEndDay;
+        };
+        
+        allChallenges.forEach(challenge => {
+          const isActive = isChallengeActiveCheck(challenge);
+          const isExpired = isChallengeExpiredCheck(challenge);
+          
+          if (isActive || (!isExpired && !challenge.is_completed)) {
+            active.push(challenge);
+          } else if (isExpired || challenge.is_completed) {
+            closed.push(challenge);
+          }
+        });
+        
+        // Store both active and closed challenges
+        setChallenges(active);
+        setClosedChallenges(closed); // Store closed challenges but don't load their detailed data yet
+        
+        // Load profiles for all shared users across active challenges only
         const sharedUserIds = new Set();
-        (data || []).forEach(challenge => {
+        active.forEach(challenge => {
           if (challenge.shared_with && Array.isArray(challenge.shared_with)) {
             challenge.shared_with.forEach(userId => {
               if (userId && userId !== currentUser.id) {
@@ -93,8 +164,8 @@ export default function ChallengeModal({
         const profiles = {};
         const progressData = {};
         
-        // Load profiles and progress for all challenges
-        for (const challenge of (data || [])) {
+        // Load profiles and progress for active challenges only
+        for (const challenge of active) {
           // Include creator in profiles
           if (challenge.user_id && !sharedUserIds.has(challenge.user_id)) {
             sharedUserIds.add(challenge.user_id);
@@ -119,7 +190,6 @@ export default function ChallengeModal({
           }
         }
         setSharedUserProfiles(profiles);
-        setChallengeUserProgress(progressData);
         setChallengeUserProgress(progressData);
       }
     } catch (error) {
@@ -292,10 +362,36 @@ export default function ChallengeModal({
   };
 
   const isChallengeActive = (challenge) => {
+    if (challenge.is_completed) return false;
+    
     const now = new Date();
+    // Set to start of day (midnight) for accurate date comparison
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
     const start = new Date(challenge.start_date);
+    const startOfStartDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    
     const end = new Date(challenge.end_date);
-    return now >= start && now <= end && !challenge.is_completed;
+    const endOfEndDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+    // Add 1 day to end date so it includes the full end date (end of day)
+    endOfEndDay.setDate(endOfEndDay.getDate() + 1);
+    
+    return today >= startOfStartDay && today < endOfEndDay;
+  };
+
+  const isChallengeExpired = (challenge) => {
+    if (challenge.is_completed) return false;
+    
+    const now = new Date();
+    // Set to start of day (midnight) for accurate date comparison
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    const end = new Date(challenge.end_date);
+    const endOfEndDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+    // Add 1 day to end date so it includes the full end date (end of day)
+    endOfEndDay.setDate(endOfEndDay.getDate() + 1);
+    
+    return today >= endOfEndDay;
   };
 
   if (!show) return null;
@@ -341,6 +437,32 @@ export default function ChallengeModal({
         </div>
 
         <div className="p-6 flex-grow">
+          {/* Tabs - Only show if not in create form */}
+          {!showCreateForm && (
+            <div className="flex gap-2 mb-6 border-b border-gray-200">
+              <button
+                onClick={() => handleTabChange('active')}
+                className={`px-4 py-2 font-medium transition-colors ${
+                  activeTab === 'active'
+                    ? 'text-indigo-600 border-b-2 border-indigo-600'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Active Challenges
+              </button>
+              <button
+                onClick={() => handleTabChange('closed')}
+                className={`px-4 py-2 font-medium transition-colors ${
+                  activeTab === 'closed'
+                    ? 'text-indigo-600 border-b-2 border-indigo-600'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Closed Challenges
+              </button>
+            </div>
+          )}
+
           {/* Create Challenge Form */}
           {showCreateForm && (
             <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg p-6 mb-6 border border-indigo-200">
@@ -531,22 +653,25 @@ export default function ChallengeModal({
           )}
 
           {/* Challenges List */}
-          {isLoading && !showCreateForm ? (
-            <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-              <p className="text-gray-600">Loading challenges...</p>
-            </div>
-          ) : challenges.length === 0 ? (
-            <div className="text-center py-12">
-              <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-600 font-medium mb-2">No Challenges Yet</p>
-              <p className="text-sm text-gray-500">Create your first reading challenge to get started!</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {challenges.map((challenge) => {
+          {activeTab === 'active' ? (
+            <>
+              {isLoading && !showCreateForm ? (
+                <div className="text-center py-12">
+                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+                  <p className="text-gray-600">Loading challenges...</p>
+                </div>
+              ) : challenges.length === 0 ? (
+                <div className="text-center py-12">
+                  <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-600 font-medium mb-2">No Active Challenges</p>
+                  <p className="text-sm text-gray-500">Create your first reading challenge to get started!</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {challenges.map((challenge) => {
                 const progress = getProgressPercentage(challenge);
                 const isActive = isChallengeActive(challenge);
+                const isExpired = isChallengeExpired(challenge);
                 const isOwner = challenge.user_id === currentUser?.id;
 
                 return (
@@ -569,6 +694,9 @@ export default function ChallengeModal({
                           )}
                           {isActive && (
                             <span className="px-2 py-0.5 bg-indigo-600 text-white text-xs rounded-full">Active</span>
+                          )}
+                          {isExpired && (
+                            <span className="px-2 py-0.5 bg-gray-500 text-white text-xs rounded-full">Closed</span>
                           )}
                           {/* All participants avatars (including creator) */}
                           {(() => {
@@ -720,8 +848,197 @@ export default function ChallengeModal({
                     </div>
                   </div>
                 );
-              })}
-            </div>
+                  })}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {isLoadingClosed ? (
+                <div className="text-center py-12">
+                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+                  <p className="text-gray-600">Loading closed challenges...</p>
+                </div>
+              ) : closedChallenges.length === 0 ? (
+                <div className="text-center py-12">
+                  <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-600 font-medium mb-2">No Closed Challenges</p>
+                  <p className="text-sm text-gray-500">Challenges that have ended or been completed will appear here.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {closedChallenges.map((challenge) => {
+                    const progress = getProgressPercentage(challenge);
+                    const isExpired = isChallengeExpired(challenge);
+                    const isOwner = challenge.user_id === currentUser?.id;
+
+                    return (
+                      <div
+                        key={challenge.id}
+                        className={`bg-white rounded-lg border-2 p-4 ${
+                          challenge.is_completed
+                            ? 'border-green-300 bg-green-50'
+                            : 'border-gray-300 bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <h3 className="text-lg font-bold text-gray-900">{challenge.challenge_name}</h3>
+                              {challenge.is_completed && (
+                                <Trophy className="w-5 h-5 text-yellow-600" />
+                              )}
+                              {isExpired && !challenge.is_completed && (
+                                <span className="px-2 py-0.5 bg-gray-500 text-white text-xs rounded-full">Closed</span>
+                              )}
+                              {challenge.is_completed && (
+                                <span className="px-2 py-0.5 bg-green-600 text-white text-xs rounded-full">Completed</span>
+                              )}
+                              {/* All participants avatars (including creator) */}
+                              {(() => {
+                                const allParticipants = [
+                                  challenge.user_id,
+                                  ...(challenge.shared_with || [])
+                                ].filter((id, index, self) => self.indexOf(id) === index);
+                                
+                                return allParticipants.length > 0 && (
+                                  <div className="flex items-center gap-1 ml-1">
+                                    {allParticipants.slice(0, 5).map((userId) => {
+                                      const profile = sharedUserProfiles[userId];
+                                      const isCreator = userId === challenge.user_id;
+                                      return (
+                                        <div
+                                          key={userId}
+                                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs border-2 border-white shadow-sm ${
+                                            isCreator ? 'bg-indigo-200 ring-2 ring-indigo-400' : 'bg-gray-200'
+                                          }`}
+                                          title={isCreator ? `${profile?.name || 'Creator'}` : profile?.name || 'Participant'}
+                                        >
+                                          {profile?.avatar || '👤'}
+                                        </div>
+                                      );
+                                    })}
+                                    {allParticipants.length > 5 && (
+                                      <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs border-2 border-white shadow-sm text-gray-600">
+                                        +{allParticipants.length - 5}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                            {challenge.description && (
+                              <p className="text-sm text-gray-600 mb-2">{challenge.description}</p>
+                            )}
+                            <div className="flex items-center gap-4 text-sm text-gray-600">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="w-4 h-4" />
+                                <span>
+                                  {new Date(challenge.start_date).toLocaleDateString()} - {new Date(challenge.end_date).toLocaleDateString()}
+                                </span>
+                              </div>
+                              {challenge.reward_xp > 0 && (
+                                <div className="flex items-center gap-1">
+                                  <Trophy className="w-4 h-4" />
+                                  <span>{challenge.reward_xp} XP</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          {isOwner && (
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleDeleteChallenge(challenge.id)}
+                                className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                title="Delete challenge"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Progress Bars - One for each participant */}
+                        <div className="mb-2 space-y-2">
+                          {(() => {
+                            const allParticipants = [
+                              challenge.user_id,
+                              ...(challenge.shared_with || [])
+                            ].filter((id, index, self) => self.indexOf(id) === index);
+                            
+                            const userProgress = challengeUserProgress[challenge.id] || {};
+                            
+                            return allParticipants.map((userId) => {
+                              const profile = sharedUserProfiles[userId];
+                              const userName = profile?.name || 'Unknown User';
+                              const userProgressCount = userProgress[userId] || 0;
+                              const userProgressPercent = Math.min(100, (userProgressCount / challenge.target_count) * 100);
+                              const isCreator = userId === challenge.user_id;
+                              const isCurrentUser = userId === currentUser?.id;
+                              const isCompleted = userProgressCount >= challenge.target_count;
+                              
+                              return (
+                                <div key={userId} className="space-y-1">
+                                  <div className="flex items-center justify-between text-xs">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-lg">{profile?.avatar || '👤'}</span>
+                                      <span className={`font-medium ${isCurrentUser ? 'text-indigo-600' : 'text-gray-700'}`}>
+                                        {isCurrentUser ? 'You' : userName}
+                                        {isCreator && <span className="ml-1 text-indigo-500">(Creator)</span>}
+                                      </span>
+                                    </div>
+                                    {isCompleted ? (
+                                      <span className="text-green-600 font-semibold flex items-center gap-1">
+                                        <Trophy className="w-3 h-3" />
+                                        Completed
+                                        {challenge.reward_xp > 0 && (
+                                          <span className="ml-1 px-1.5 py-0.5 bg-yellow-500 text-white rounded-full text-xs font-bold">
+                                            +{challenge.reward_xp} XP
+                                          </span>
+                                        )}
+                                      </span>
+                                    ) : (
+                                      <span className="text-gray-600">
+                                        {userProgressCount} / {challenge.target_count}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {!isCompleted && (
+                                    <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full transition-all ${
+                                          isCurrentUser
+                                            ? 'bg-indigo-600'
+                                            : 'bg-blue-400'
+                                        }`}
+                                        style={{ width: `${userProgressPercent}%` }}
+                                      />
+                                    </div>
+                                  )}
+                                  {isCompleted && (
+                                    <div className="w-full bg-green-100 rounded-lg p-2 border border-green-300">
+                                      <div className="flex items-center gap-2 text-green-700 text-xs font-medium">
+                                        <Check className="w-4 h-4" />
+                                        <span>Challenge completed! 🎉</span>
+                                        {challenge.reward_xp > 0 && (
+                                          <span className="ml-2 px-2 py-0.5 bg-yellow-500 text-white rounded-full font-bold">
+                                            +{challenge.reward_xp} XP
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            });
+                          })()}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

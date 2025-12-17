@@ -214,16 +214,28 @@ export function useGamification(currentUser, bookshelves) {
         }
       }
       
+      // TODO: See ChallengeModal.jsx TODO - persist is_closed status in DB to avoid re-evaluation
+      // Filter out challenges where is_closed = true before date evaluation
+      
       // Get all active challenges where user is either creator or in shared_with
       const activeChallenges = challenges.filter(c => {
         if (c.is_completed) return false;
+        // TODO: Add check for c.is_closed here once DB field is added
         
         const now = new Date();
-        const endDate = new Date(c.end_date);
-        const startDate = new Date(c.start_date);
+        // Set to start of day (midnight) for accurate date comparison
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         
-        if (endDate < now) return false;
-        if (startDate > now) return false;
+        const endDate = new Date(c.end_date);
+        const endOfEndDay = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+        // Add 1 day to end date so it includes the full end date (end of day)
+        endOfEndDay.setDate(endOfEndDay.getDate() + 1);
+        
+        const startDate = new Date(c.start_date);
+        const startOfStartDay = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+        
+        if (today >= endOfEndDay) return false; // Challenge has ended
+        if (today < startOfStartDay) return false; // Challenge hasn't started yet
         
         // Check if user is creator
         if (String(c.user_id) === String(currentUser.id)) {

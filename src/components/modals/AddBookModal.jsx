@@ -93,7 +93,10 @@ export default function AddBookModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Author</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Author
+              <span className="ml-2 text-xs text-indigo-600 font-normal">(Used for AI recommendations)</span>
+            </label>
             <input
               type="text"
               value={newBook.author}
@@ -104,7 +107,10 @@ export default function AddBookModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Genre</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Genre
+              <span className="ml-2 text-xs text-indigo-600 font-normal">(Used for AI recommendations)</span>
+            </label>
             <input
               type="text"
               value={newBook.genre || ''}
@@ -173,7 +179,10 @@ export default function AddBookModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Description
+              <span className="ml-2 text-xs text-indigo-600 font-normal">(Used for AI recommendations)</span>
+            </label>
             <textarea
               value={newBook.description}
               onChange={(e) => setNewBook({ ...newBook, description: e.target.value })}
@@ -238,13 +247,29 @@ export default function AddBookModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Favorite Character</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Favorite Character
+              <span className="ml-2 text-xs text-indigo-600 font-normal">(Used for AI recommendations)</span>
+            </label>
             <input
               type="text"
               value={newBook.favoriteCharacter}
               onChange={(e) => setNewBook({ ...newBook, favoriteCharacter: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Your favorite character"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Review
+              <span className="ml-2 text-xs text-indigo-600 font-normal">(Used for AI recommendations & writing feedback)</span>
+            </label>
+            <textarea
+              value={newBook.review}
+              onChange={(e) => setNewBook({ ...newBook, review: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24"
+              placeholder="Your review of the book"
             />
           </div>
 
@@ -265,16 +290,6 @@ export default function AddBookModal({
               onChange={(e) => setNewBook({ ...newBook, memorableMoments: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24"
               placeholder="Memorable moments from the book"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Review</label>
-            <textarea
-              value={newBook.review}
-              onChange={(e) => setNewBook({ ...newBook, review: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24"
-              placeholder="Your review of the book"
             />
           </div>
 

@@ -41,6 +41,58 @@ export default function BookshelfDisplay({
 
   return (
     <div className={`bg-gradient-to-b ${theme.colors.primary} rounded-2xl shadow-2xl p-8 relative overflow-hidden`}>
+      {/* Animal Stickers - Decorative elements in corners */}
+      {theme.decorations && theme.decorations.length > 0 && (
+        <>
+          {/* Top-left sticker */}
+          <div className="absolute top-2 left-2 text-4xl sm:text-5xl opacity-30 pointer-events-none z-0 transform rotate-12">
+            {theme.decorations[0]}
+          </div>
+          {/* Top-right sticker (positioned below main character) */}
+          {theme.decorations[1] && (
+            <div className="absolute top-20 right-4 text-3xl sm:text-4xl opacity-30 pointer-events-none z-0 transform -rotate-12">
+              {theme.decorations[1]}
+            </div>
+          )}
+          {/* Bottom-left sticker */}
+          {theme.decorations[2] && (
+            <div className="absolute bottom-16 left-2 text-3xl sm:text-4xl opacity-25 pointer-events-none z-0 transform rotate-6">
+              {theme.decorations[2]}
+            </div>
+          )}
+          {/* Bottom-right sticker */}
+          {theme.decorations[3] && (
+            <div className="absolute bottom-16 right-2 text-3xl sm:text-4xl opacity-25 pointer-events-none z-0 transform -rotate-6">
+              {theme.decorations[3]}
+            </div>
+          )}
+        </>
+      )}
+      
+      {/* Main Animal Character - Large emoji or GIF in top-right corner */}
+      <div className="absolute top-4 right-4 z-20 pointer-events-none">
+        {theme.gifUrl ? (
+          <img 
+            src={theme.gifUrl} 
+            alt={theme.name}
+            className="w-16 h-16 sm:w-20 sm:h-20 object-contain opacity-80"
+            onError={(e) => {
+              // Fallback to emoji if GIF fails to load
+              e.target.style.display = 'none';
+              const container = e.target.parentElement;
+              const emojiFallback = container.querySelector('.emoji-fallback');
+              if (emojiFallback) emojiFallback.style.display = 'block';
+            }}
+          />
+        ) : null}
+        <div 
+          className={`emoji-fallback text-5xl sm:text-6xl opacity-70`}
+          style={{ display: theme.gifUrl ? 'none' : 'block' }}
+        >
+          {theme.emoji}
+        </div>
+      </div>
+      
       <div className={`bg-white/20 rounded-xl p-6 min-h-[400px] relative z-10`}>
         {filteredBooks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-white">

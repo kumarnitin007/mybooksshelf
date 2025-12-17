@@ -436,10 +436,11 @@ export const awardAchievement = async (userId, badgeType, badgeName, badgeEmoji,
 // Virtual Rewards
 export const getUserRewards = async (userId) => {
   try {
+    // Fetch both user-specific rewards and criteria-based rewards (where user_id is null)
     const { data, error } = await supabase
       .from('bk_user_rewards')
       .select('*')
-      .eq('user_id', userId)
+      .or(`user_id.eq.${userId},user_id.is.null`)
       .order('unlocked_at', { ascending: false });
 
     return { data: data || [], error };
@@ -665,6 +666,10 @@ export const checkAndAwardVirtualRewards = async (userId, stats) => {
 // Reading Challenges
 export const getChallenges = async (userId) => {
   try {
+    // TODO: See ChallengeModal.jsx TODO - once is_closed field is added to DB,
+    // optionally filter out closed challenges at query level: .is('is_closed', null).or('is_closed.eq.false')
+    // This would reduce data transfer and processing for closed challenges
+    
     // Get challenges created by user
     const { data: myChallenges, error: myError } = await supabase
       .from('bk_reading_challenges')
