@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Book, Star, Calendar, User, Plus, X, Filter, Sparkles, ChevronDown, Target, Grid, List, Heart, Edit2, Check, Info, Table, Download, FileUp, Trash2, Share2 } from 'lucide-react';
+import { Book, Star, Calendar, User, Plus, X, Sparkles, Target, Grid, List, Heart, Edit2, Check, Info, Table, Download, FileUp, Trash2, Share2 } from 'lucide-react';
 import AboutBookshelfModal from './components/AboutBookshelfModal';
 import AvatarSelector from './components/AvatarSelector';
 import LevelUpModal from './components/modals/LevelUpModal';
@@ -107,8 +107,6 @@ export default function App() {
   const [showProfile, setShowProfile] = useState(false);
   const [selectedBook, setSelectedBook] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterBy, setFilterBy] = useState('all');
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [displayMode, setDisplayMode] = useState('covers'); // 'covers', 'spines', or 'table'
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -1654,41 +1652,10 @@ export default function App() {
   const getFilteredBooks = () => {
     const activeShelf = getActiveBookshelf();
     if (!activeShelf) return [];
-    
-    
-    let books = activeShelf.books;
-    
-    // Apply search filter (includes genre)
-    if (searchQuery) {
-      books = books.filter(book => 
-        book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        book.author?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        book.genre?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-    
-    // Apply rating/author/genre/sharing filter
-    if (filterBy === 'rating5') {
-      books = books.filter(book => book.rating === 5);
-    } else if (filterBy === 'rating4+') {
-      books = books.filter(book => book.rating >= 4);
-    } else if (filterBy.startsWith('author:')) {
-      const author = filterBy.replace('author:', '');
-      books = books.filter(book => book.author === author);
-    } else if (filterBy.startsWith('genre:')) {
-      const genre = filterBy.replace('genre:', '');
-      books = books.filter(book => book.genre === genre);
-    } else if (filterBy === 'shared_with_me') {
-      books = books.filter(book => book.sharedBy && book.sharedBy !== currentUser?.id);
-    } else if (filterBy === 'shared_by_me') {
-      books = books.filter(book => book.sharedBy === currentUser?.id || (book.sharedWith && book.sharedWith.length > 0));
-    }
-    
-    return books;
+    return activeShelf.books;
   };
 
   const allBooks = bookshelves.flatMap(shelf => shelf.books);
-  const uniqueAuthors = [...new Set(allBooks.map(b => b.author))].filter(Boolean);
   const activeShelf = getActiveBookshelf();
   const theme = activeShelf ? ANIMAL_THEMES[activeShelf.animal] || ANIMAL_THEMES.cat : ANIMAL_THEMES.cat;
   const filteredBooks = getFilteredBooks();
@@ -2170,7 +2137,9 @@ export default function App() {
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Tabs for Active and Completed Bookshelves */}
         <div className="bg-white rounded-2xl shadow-xl p-4 mb-6">
-          <div className="flex gap-2 mb-4 flex-wrap">
+          <div className="flex flex-col gap-2 mb-4">
+            {/* First row: Main navigation buttons */}
+            <div className="flex gap-2 flex-wrap items-center">
             <button
               onClick={() => {
                 const regular = getRegularBookshelves();
@@ -2233,31 +2202,76 @@ export default function App() {
               title="View books shared with you"
             >
               <Share2 className="w-4 h-4 sm:mr-1" />
-              <span className="hidden sm:inline">Shared with Me ({getSharedWithMeBookshelf()?.books.length || 0})</span>
+                <span className="hidden sm:inline">Shared ({getSharedWithMeBookshelf()?.books.length || 0})</span>
             </button>
             <button
               onClick={() => setShowAddModal(true)}
-              className="ml-auto px-2 sm:px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg font-medium hover:from-indigo-700 hover:to-blue-700 flex items-center gap-1 sm:gap-2"
+                className="ml-auto px-2 sm:px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg font-medium hover:from-indigo-700 hover:to-blue-700 flex items-center gap-1 sm:gap-2"
               title="Add a new book to your library"
             >
-              <Plus className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-              <span className="whitespace-nowrap">Add Book</span>
+                <Plus className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                <span className="whitespace-nowrap">Add Book</span>
             </button>
+            </div>
+            {/* Second row: User bookshelves (up to 6) */}
+            {getRegularBookshelves().slice(0, 6).length > 0 && (
+              <div className="flex gap-2 flex-wrap">
+                {getRegularBookshelves().slice(0, 6).map((shelf) => {
+                  const shelfIndex = bookshelves.findIndex(s => s.id === shelf.id);
+                  const isActive = activeBookshelfIndex === shelfIndex;
+                  // Shorten shelf name: first two words
+                  const shortenName = (name) => {
+                    const words = name.split(' ');
+                    if (words.length === 1) return words[0];
+                    if (words.length >= 2) return words[0] + ' ' + words[1];
+                    return words[0];
+                  };
+                  const shortName = shortenName(shelf.name);
+                  
+                  // Get button color based on animal theme
+                  const getButtonColor = (animal) => {
+                    if (!animal || !ANIMAL_THEMES[animal]) {
+                      return isActive ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200';
+                    }
+                    // Map animal to button color classes
+                    const animalColorMap = {
+                      'cat': isActive ? 'bg-pink-600 text-white' : 'bg-pink-500 text-white hover:bg-pink-600',
+                      'dog': isActive ? 'bg-amber-600 text-white' : 'bg-amber-500 text-white hover:bg-amber-600',
+                      'bunny': isActive ? 'bg-purple-600 text-white' : 'bg-purple-500 text-white hover:bg-purple-600',
+                      'bear': isActive ? 'bg-amber-700 text-white' : 'bg-amber-600 text-white hover:bg-amber-700',
+                      'panda': isActive ? 'bg-gray-700 text-white' : 'bg-gray-600 text-white hover:bg-gray-700',
+                      'fox': isActive ? 'bg-orange-600 text-white' : 'bg-orange-500 text-white hover:bg-orange-600',
+                      'owl': isActive ? 'bg-yellow-600 text-white' : 'bg-yellow-500 text-white hover:bg-yellow-600',
+                      'penguin': isActive ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white hover:bg-blue-600',
+                      'heart': isActive ? 'bg-red-600 text-white' : 'bg-red-500 text-white hover:bg-red-600',
+                      'sparkles': isActive ? 'bg-purple-600 text-white' : 'bg-purple-500 text-white hover:bg-purple-600',
+                    };
+                    return animalColorMap[animal] || (isActive ? 'bg-indigo-600 text-white' : 'bg-indigo-500 text-white hover:bg-indigo-600');
+                  };
+                  
+                  return (
             <button
-              onClick={createNewBookshelf}
-              className="px-2 sm:px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 flex items-center gap-1 sm:gap-2"
-              title="Create a new bookshelf"
-            >
-              <Plus className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-              <span className="hidden sm:inline whitespace-nowrap">New Bookshelf</span>
+                      key={shelf.id}
+                      onClick={() => setActiveBookshelfIndex(shelfIndex)}
+                      className={`px-2 sm:px-4 py-2 rounded-lg font-medium flex items-center justify-center ${getButtonColor(shelf.animal)}`}
+                      title={`View ${shelf.name}`}
+                    >
+                      {shelf.animal && ANIMAL_THEMES[shelf.animal]?.emoji && (
+                        <span>{ANIMAL_THEMES[shelf.animal].emoji}</span>
+                      )}
+                      <span className="hidden sm:inline ml-1">{shortName} ({shelf.books.length})</span>
             </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Bookshelf Selector */}
           {activeShelf && (
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 mb-4">
+            <div className="flex flex-row items-center gap-2 flex-wrap mb-4">
               {isEditingBookshelfName ? (
-                <div className="flex items-center gap-2 flex-1">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
                   <input
                     type="text"
                     value={editingBookshelfName}
@@ -2274,268 +2288,160 @@ export default function App() {
                   />
                   <button
                     onClick={saveBookshelfName}
-                    className="px-2 sm:px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    className="px-2 sm:px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex-shrink-0"
                     title="Save bookshelf name"
                   >
                     <Check className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                   <button
                     onClick={cancelEditingBookshelfName}
-                    className="px-2 sm:px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                    className="px-2 sm:px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex-shrink-0"
                     title="Cancel editing"
                   >
                     <X className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <select
-                    value={activeBookshelfIndex}
-                    onChange={(e) => {
-                      isUpdatingRef.current = true;
-                      setActiveBookshelfIndex(parseInt(e.target.value));
-                      setIsEditingBookshelfName(false);
-                      setEditingBookshelfName('');
-                      saveActiveIndex(); // Save active index
-                    }}
-                    className="flex-1 min-w-0 px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    {bookshelves.map((shelf, index) => (
-                      <option key={shelf.id} value={index}>
-                        {shelf.name} {shelf.animal ? ANIMAL_THEMES[shelf.animal]?.emoji : ''} {
-                          shelf.type === 'wishlist' || shelf.type === 'favorites' || shelf.type === 'shared_with_me'
-                            ? `(${shelf.books.length})` 
-                            : `(${shelf.books.length}/10)`
-                        }
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={startEditingBookshelfName}
-                    className="px-2 sm:px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex-shrink-0"
-                    title="Edit bookshelf name"
-                  >
-                    <Edit2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </button>
-                  {activeShelf && activeShelf.type === 'regular' && (
-                    <button
-                      onClick={() => handleDeleteBookshelf(activeShelf.id)}
-                      className="px-2 sm:px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex-shrink-0"
-                      title="Delete this bookshelf"
+                <>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <select
+                      value={activeBookshelfIndex}
+                      onChange={(e) => {
+                        isUpdatingRef.current = true;
+                        setActiveBookshelfIndex(parseInt(e.target.value));
+                        setIsEditingBookshelfName(false);
+                        setEditingBookshelfName('');
+                        saveActiveIndex(); // Save active index
+                      }}
+                      className="max-w-[240px] sm:max-w-[300px] px-2 sm:px-3 py-2 text-xs sm:text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
-                      <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                      {bookshelves.map((shelf, index) => (
+                        <option key={shelf.id} value={index}>
+                          {shelf.name} {shelf.animal ? ANIMAL_THEMES[shelf.animal]?.emoji : ''} {
+                            shelf.type === 'wishlist' || shelf.type === 'favorites' || shelf.type === 'shared_with_me'
+                              ? `(${shelf.books.length})` 
+                              : `(${shelf.books.length}/10)`
+                          }
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={startEditingBookshelfName}
+                      className="px-2 sm:px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex-shrink-0"
+                      title="Edit bookshelf name"
+                    >
+                      <Edit2 className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
-                  )}
-                </div>
+                    {activeShelf && activeShelf.type === 'regular' && (
+                      <button
+                        onClick={() => handleDeleteBookshelf(activeShelf.id)}
+                        className="px-2 sm:px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex-shrink-0"
+                        title="Delete this bookshelf"
+                      >
+                        <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <button
+                      onClick={createNewBookshelf}
+                      className="px-2 sm:px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex-shrink-0 flex items-center gap-1"
+                      title="Create a new bookshelf"
+                    >
+                      <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                      <span>Add Bookshelf</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        const updated = [...bookshelves];
+                        updated[activeBookshelfIndex].displayMode = 'covers';
+                        setBookshelves(updated);
+                        setDisplayMode('covers');
+                      }}
+                      className={`px-2 sm:px-3 py-2 rounded-lg flex-shrink-0 ${activeShelf.displayMode === 'covers' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+                      title="Grid view"
+                    >
+                      <Grid className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        const updated = [...bookshelves];
+                        updated[activeBookshelfIndex].displayMode = 'spines';
+                        setBookshelves(updated);
+                        setDisplayMode('spines');
+                      }}
+                      className={`px-2 sm:px-3 py-2 rounded-lg flex-shrink-0 ${activeShelf.displayMode === 'spines' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+                      title="Spine view"
+                    >
+                      <List className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        const updated = [...bookshelves];
+                        updated[activeBookshelfIndex].displayMode = 'table';
+                        setBookshelves(updated);
+                        setDisplayMode('table');
+                      }}
+                      className={`px-2 sm:px-3 py-2 rounded-lg flex-shrink-0 ${activeShelf.displayMode === 'table' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+                      title="Table view"
+                    >
+                      <Table className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </button>
+                  </div>
+                </>
               )}
               
-              <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-                {activeShelf.type !== 'wishlist' && activeShelf.type !== 'favorites' && activeShelf.type !== 'shared_with_me' && (
-                  <select
-                    value={activeShelf.animal}
-                    onChange={async (e) => {
-                      const newAnimal = e.target.value;
-                      if (!activeShelf || !activeShelf.id) {
-                        alert('Error: No bookshelf selected or invalid bookshelf ID');
-                        return;
-                      }
+              {activeShelf.type !== 'wishlist' && activeShelf.type !== 'favorites' && activeShelf.type !== 'shared_with_me' && (
+                <select
+                  value={activeShelf.animal}
+                  onChange={async (e) => {
+                    const newAnimal = e.target.value;
+                    if (!activeShelf || !activeShelf.id) {
+                      alert('Error: No bookshelf selected or invalid bookshelf ID');
+                      return;
+                    }
 
-                      isUpdatingRef.current = true;
+                    isUpdatingRef.current = true;
+                    
+                    try {
+                      // Update in database
+                      const result = await updateBookshelf(activeShelf.id, {
+                        animal: newAnimal
+                      });
                       
-                      try {
-                        // Update in database
-                        const result = await updateBookshelf(activeShelf.id, {
-                          animal: newAnimal
-                        });
-                        
-                        if (result.error) {
-                          console.error('Error updating bookshelf animal in database:', result.error);
-                          alert(`Failed to save animal selection to database: ${result.error.message || 'Unknown error'}. The change may not persist after page reload.`);
-                          // Continue with local update so user sees the change
-                        } else {
-                        }
-
-                        // Update local state
-                        const updated = [...bookshelves];
-                        updated[activeBookshelfIndex] = { ...updated[activeBookshelfIndex], animal: newAnimal };
-                        setBookshelves(updated);
-                      } catch (error) {
-                        console.error('Error updating bookshelf animal:', error);
-                        alert(`Error updating animal: ${error.message || 'Unknown error'}. The change may not persist after page reload.`);
-                        // Still update local state so user sees the change
-                        const updated = [...bookshelves];
-                        updated[activeBookshelfIndex] = { ...updated[activeBookshelfIndex], animal: newAnimal };
-                        setBookshelves(updated);
-                      } finally {
-                        isUpdatingRef.current = false;
+                      if (result.error) {
+                        console.error('Error updating bookshelf animal in database:', result.error);
+                        alert(`Failed to save animal selection to database: ${result.error.message || 'Unknown error'}. The change may not persist after page reload.`);
+                        // Continue with local update so user sees the change
+                      } else {
                       }
-                    }}
-                    className="px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 flex-shrink-0"
-                  >
-                    {Object.entries(ANIMAL_THEMES).filter(([key]) => key !== 'heart' && key !== 'sparkles').map(([key, theme]) => (
-                      <option key={key} value={key}>
-                        {theme.emoji} {theme.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
 
-                  <button
-                    onClick={() => {
+                      // Update local state
                       const updated = [...bookshelves];
-                      updated[activeBookshelfIndex].displayMode = 'covers';
+                      updated[activeBookshelfIndex] = { ...updated[activeBookshelfIndex], animal: newAnimal };
                       setBookshelves(updated);
-                      setDisplayMode('covers');
-                    }}
-                    className={`px-2 sm:px-3 py-2 rounded-lg flex-shrink-0 ${activeShelf.displayMode === 'covers' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-                    title="Grid view"
-                  >
-                    <Grid className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </button>
-                  <button
-                    onClick={() => {
+                    } catch (error) {
+                      console.error('Error updating bookshelf animal:', error);
+                      alert(`Error updating animal: ${error.message || 'Unknown error'}. The change may not persist after page reload.`);
+                      // Still update local state so user sees the change
                       const updated = [...bookshelves];
-                      updated[activeBookshelfIndex].displayMode = 'spines';
+                      updated[activeBookshelfIndex] = { ...updated[activeBookshelfIndex], animal: newAnimal };
                       setBookshelves(updated);
-                      setDisplayMode('spines');
-                    }}
-                    className={`px-2 sm:px-3 py-2 rounded-lg flex-shrink-0 ${activeShelf.displayMode === 'spines' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-                    title="Spine view"
-                  >
-                    <List className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      const updated = [...bookshelves];
-                      updated[activeBookshelfIndex].displayMode = 'table';
-                      setBookshelves(updated);
-                      setDisplayMode('table');
-                    }}
-                    className={`px-2 sm:px-3 py-2 rounded-lg flex-shrink-0 ${activeShelf.displayMode === 'table' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'}`}
-                    title="Table view"
-                  >
-                    <Table className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </button>
-                </div>
-              </div>
-          )}
-
-          {/* Search and Filter */}
-          <div className="flex gap-3">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Search books or authors..."
-                value={searchQuery}
-                onChange={handleSearchChange}
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              {searchResults.length > 0 && (
-                <div className="absolute z-20 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl max-h-96 overflow-y-auto">
-                  {searchResults.map((result, index) => (
-                    <button
-                      key={index}
-                      onClick={() => selectSearchResult(result)}
-                      className="w-full text-left p-4 hover:bg-gray-50 border-b border-gray-100 last:border-0 flex gap-3"
-                    >
-                      <img src={result.coverUrl} alt={result.title} className="w-12 h-16 object-cover rounded" />
-                      <div className="flex-1">
-                        <div className="font-semibold text-gray-900">{result.title}</div>
-                        <div className="text-sm text-gray-600">{result.author}</div>
-                      </div>
-                    </button>
+                    } finally {
+                      isUpdatingRef.current = false;
+                    }
+                  }}
+                  className="px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 flex-shrink-0"
+                >
+                  {Object.entries(ANIMAL_THEMES).filter(([key]) => key !== 'heart' && key !== 'sparkles').map(([key, theme]) => (
+                    <option key={key} value={key}>
+                      {theme.emoji} {theme.name}
+                    </option>
                   ))}
-                </div>
+                </select>
               )}
             </div>
-            <div className="relative">
-              <button
-                onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                className="flex items-center gap-2 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
-                title="Filter books by rating, genre, author, or sharing status"
-              >
-                <Filter className="w-5 h-5 text-gray-600" />
-                <span className="text-gray-700">Filter</span>
-                <ChevronDown className="w-4 h-4 text-gray-600" />
-              </button>
-              
-              {showFilterDropdown && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-10">
-                  <button
-                    onClick={() => { setFilterBy('all'); setShowFilterDropdown(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50"
-                    title="Show all books"
-                  >
-                    All Books
-                  </button>
-                  <button
-                    onClick={() => { setFilterBy('rating5'); setShowFilterDropdown(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50"
-                    title="Show only 5-star rated books"
-                  >
-                    5 Star Ratings
-                  </button>
-                  <button
-                    onClick={() => { setFilterBy('rating4+'); setShowFilterDropdown(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50"
-                    title="Show books rated 4 stars or higher"
-                  >
-                    4+ Star Ratings
-                  </button>
-                  <div className="border-t border-gray-100 my-2"></div>
-                  <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Sharing</div>
-                  <button
-                    onClick={() => { setFilterBy('shared_with_me'); setShowFilterDropdown(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm flex items-center gap-2"
-                    title="Show books shared with you by other users"
-                  >
-                    <Share2 className="w-4 h-4 text-blue-600" />
-                    Shared with Me
-                  </button>
-                  <button
-                    onClick={() => { setFilterBy('shared_by_me'); setShowFilterDropdown(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm flex items-center gap-2"
-                    title="Show books you have shared with others"
-                  >
-                    <Share2 className="w-4 h-4 text-green-600" />
-                    Books I Shared
-                  </button>
-                  {uniqueGenres.length > 0 && (
-                    <>
-                      <div className="border-t border-gray-100 my-2"></div>
-                      <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">By Genre</div>
-                      {uniqueGenres.map(genre => (
-                        <button
-                          key={genre}
-                          onClick={() => { setFilterBy(`genre:${genre}`); setShowFilterDropdown(false); }}
-                          className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm flex items-center gap-2"
-                        >
-                          <span className={`w-2 h-2 rounded-full ${getGenreColor(genre).bg}`}></span>
-                          {genre}
-                        </button>
-                      ))}
-                    </>
-                  )}
-                  {uniqueAuthors.length > 0 && (
-                    <>
-                      <div className="border-t border-gray-100 my-2"></div>
-                      <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">By Author</div>
-                      {uniqueAuthors.map(author => (
-                        <button
-                          key={author}
-                          onClick={() => { setFilterBy(`author:${author}`); setShowFilterDropdown(false); }}
-                          className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm"
-                        >
-                          {author}
-                        </button>
-                      ))}
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Bookshelf Display */}

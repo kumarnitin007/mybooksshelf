@@ -121,7 +121,7 @@ export default function Header({
               }
             >
               <PenTool className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-              <span className="hidden sm:inline">Writing Feedback</span>
+              <span className="hidden sm:inline">Writing AI</span>
             </button>
             <button
               onClick={onShowChallenges}
