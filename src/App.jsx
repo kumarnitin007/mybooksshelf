@@ -2147,10 +2147,11 @@ export default function App() {
                   setActiveBookshelfIndex(bookshelves.findIndex(s => s.id === regular[0].id));
                 }
               }}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium"
+              className="px-2 sm:px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium flex items-center justify-center"
               title="View all your books"
             >
-              Books ({getTotalBooksCount()})
+              <Book className="w-4 h-4 sm:mr-1" />
+              <span className="hidden sm:inline">Books ({getTotalBooksCount()})</span>
             </button>
             <button
               onClick={() => {
@@ -2210,7 +2211,8 @@ export default function App() {
               title="Add a new book to your library"
             >
                 <Plus className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                <span className="whitespace-nowrap">Add Book</span>
+                <span className="sm:hidden">Book</span>
+                <span className="hidden sm:inline whitespace-nowrap">Add Book</span>
             </button>
             </div>
             {/* Second row: User bookshelves (up to 6) */}
@@ -2303,7 +2305,7 @@ export default function App() {
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
                     <select
                       value={activeBookshelfIndex}
                       onChange={(e) => {
@@ -2313,7 +2315,7 @@ export default function App() {
                         setEditingBookshelfName('');
                         saveActiveIndex(); // Save active index
                       }}
-                      className="max-w-[240px] sm:max-w-[300px] px-2 sm:px-3 py-2 text-xs sm:text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="flex-1 min-w-0 max-w-full sm:max-w-none px-2 sm:px-3 py-2 text-xs sm:text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                       {bookshelves.map((shelf, index) => (
                         <option key={shelf.id} value={index}>
@@ -2349,7 +2351,7 @@ export default function App() {
                       title="Create a new bookshelf"
                     >
                       <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                      <span>Add Bookshelf</span>
+                      <span className="hidden sm:inline">Add Bookshelf</span>
                     </button>
                     <button
                       onClick={() => {

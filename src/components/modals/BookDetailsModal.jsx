@@ -192,7 +192,7 @@ export default function BookDetailsModal({
               <img
                 src={localBook?.coverUrl || selectedBook.coverUrl}
                 alt={localBook?.title || selectedBook.title}
-                className="w-40 h-60 object-cover rounded-lg shadow-lg"
+                className="w-20 h-[120px] sm:w-40 sm:h-60 object-cover rounded-lg shadow-lg"
                 onError={(e) => {
                   e.target.src = getPlaceholderImage(localBook?.title || selectedBook.title);
                 }}
@@ -233,6 +233,17 @@ export default function BookDetailsModal({
                   </span>
                 </div>
               )}
+              <div className="mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cover Image URL</label>
+                <input
+                  type="text"
+                  value={localBook?.coverUrl || selectedBook.coverUrl || ''}
+                  onChange={(e) => handleUpdate({ coverUrl: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  placeholder="Enter image URL or leave empty for placeholder"
+                />
+                <p className="text-xs text-gray-500 mt-1">You can paste an image URL here or use the upload button to upload a file</p>
+              </div>
               <div className="mb-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Genre</label>
                 <input
