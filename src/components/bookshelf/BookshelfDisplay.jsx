@@ -69,29 +69,27 @@ export default function BookshelfDisplay({
         </>
       )}
       
-      {/* Main Animal Character - Large emoji or GIF in top-right corner */}
+      {/* Main Animal Character - Large emoji in top-right corner */}
       <div className="absolute top-4 right-4 z-20 pointer-events-none">
-        {theme.gifUrl ? (
-          <img 
-            src={theme.gifUrl} 
-            alt={theme.name}
-            className="w-16 h-16 sm:w-20 sm:h-20 object-contain opacity-80"
-            onError={(e) => {
-              // Fallback to emoji if GIF fails to load
-              e.target.style.display = 'none';
-              const container = e.target.parentElement;
-              const emojiFallback = container.querySelector('.emoji-fallback');
-              if (emojiFallback) emojiFallback.style.display = 'block';
-            }}
-          />
-        ) : null}
-        <div 
-          className={`emoji-fallback text-5xl sm:text-6xl opacity-70`}
-          style={{ display: theme.gifUrl ? 'none' : 'block' }}
-        >
+        <div className="text-5xl sm:text-6xl opacity-70">
           {theme.emoji}
         </div>
       </div>
+      
+      {/* GIF Display - Bottom of dashboard */}
+      {theme.gifUrl && (
+        <div className="absolute bottom-4 right-4 z-20 pointer-events-none">
+          <img 
+            src={theme.gifUrl} 
+            alt={`${theme.name} reading`}
+            className="w-48 h-48 sm:w-64 sm:h-64 object-contain opacity-90 rounded-lg shadow-lg"
+            onError={(e) => {
+              // Hide GIF if it fails to load
+              e.target.style.display = 'none';
+            }}
+          />
+        </div>
+      )}
       
       <div className={`bg-white/20 rounded-xl p-6 min-h-[400px] relative z-10`}>
         {filteredBooks.length === 0 ? (

@@ -1,0 +1,348 @@
+[33mcommit d4b0fc10efe4ae8adf78f534b39eb3e292394a19[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Nitin Kumar <kumarnitin007@gmail.com>
+Date:   Wed Dec 17 13:52:17 2025 -0800
+
+    Small changes
+
+[1mdiff --git a/src/components/bookshelf/BookshelfDisplay.jsx b/src/components/bookshelf/BookshelfDisplay.jsx[m
+[1mindex 3a7300b..ce07b3e 100644[m
+[1m--- a/src/components/bookshelf/BookshelfDisplay.jsx[m
+[1m+++ b/src/components/bookshelf/BookshelfDisplay.jsx[m
+[36m@@ -41,6 +41,58 @@[m [mexport default function BookshelfDisplay({[m
+ [m
+   return ([m
+     <div className={`bg-gradient-to-b ${theme.colors.primary} rounded-2xl shadow-2xl p-8 relative overflow-hidden`}>[m
+[32m+[m[32m      {/* Animal Stickers - Decorative elements in corners */}[m
+[32m+[m[32m      {theme.decorations && theme.decorations.length > 0 && ([m
+[32m+[m[32m        <>[m
+[32m+[m[32m          {/* Top-left sticker */}[m
+[32m+[m[32m          <div className="absolute top-2 left-2 text-4xl sm:text-5xl opacity-30 pointer-events-none z-0 transform rotate-12">[m
+[32m+[m[32m            {theme.decorations[0]}[m
+[32m+[m[32m          </div>[m
+[32m+[m[32m          {/* Top-right sticker (positioned below main character) */}[m
+[32m+[m[32m          {theme.decorations[1] && ([m
+[32m+[m[32m            <div className="absolute top-20 right-4 text-3xl sm:text-4xl opacity-30 pointer-events-none z-0 transform -rotate-12">[m
+[32m+[m[32m              {theme.decorations[1]}[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m          )}[m
+[32m+[m[32m          {/* Bottom-left sticker */}[m
+[32m+[m[32m          {theme.decorations[2] && ([m
+[32m+[m[32m            <div className="absolute bottom-16 left-2 text-3xl sm:text-4xl opacity-25 pointer-events-none z-0 transform rotate-6">[m
+[32m+[m[32m              {theme.decorations[2]}[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m          )}[m
+[32m+[m[32m          {/* Bottom-right sticker */}[m
+[32m+[m[32m          {theme.decorations[3] && ([m
+[32m+[m[32m            <div className="absolute bottom-16 right-2 text-3xl sm:text-4xl opacity-25 pointer-events-none z-0 transform -rotate-6">[m
+[32m+[m[32m              {theme.decorations[3]}[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m          )}[m
+[32m+[m[32m        </>[m
+[32m+[m[32m      )}[m
+[32m+[m[41m      [m
+[32m+[m[32m      {/* Main Animal Character - Large emoji or GIF in top-right corner */}[m
+[32m+[m[32m      <div className="absolute top-4 right-4 z-20 pointer-events-none">[m
+[32m+[m[32m        {theme.gifUrl ? ([m
+[32m+[m[32m          <img[m[41m [m
+[32m+[m[32m            src={theme.gifUrl}[m[41m [m
+[32m+[m[32m            alt={theme.name}[m
+[32m+[m[32m            className="w-16 h-16 sm:w-20 sm:h-20 object-contain opacity-80"[m
+[32m+[m[32m            onError={(e) => {[m
+[32m+[m[32m              // Fallback to emoji if GIF fails to load[m
+[32m+[m[32m              e.target.style.display = 'none';[m
+[32m+[m[32m              const container = e.target.parentElement;[m
+[32m+[m[32m              const emojiFallback = container.querySelector('.emoji-fallback');[m
+[32m+[m[32m              if (emojiFallback) emojiFallback.style.display = 'block';[m
+[32m+[m[32m            }}[m
+[32m+[m[32m          />[m
+[32m+[m[32m        ) : null}[m
+[32m+[m[32m        <div[m[41m [m
+[32m+[m[32m          className={`emoji-fallback text-5xl sm:text-6xl opacity-70`}[m
+[32m+[m[32m          style={{ display: theme.gifUrl ? 'none' : 'block' }}[m
+[32m+[m[32m        >[m
+[32m+[m[32m          {theme.emoji}[m
+[32m+[m[32m        </div>[m
+[32m+[m[32m      </div>[m
+[32m+[m[41m      [m
+       <div className={`bg-white/20 rounded-xl p-6 min-h-[400px] relative z-10`}>[m
+         {filteredBooks.length === 0 ? ([m
+           <div className="flex flex-col items-center justify-center h-64 text-white">[m
+[1mdiff --git a/src/components/modals/AddBookModal.jsx b/src/components/modals/AddBookModal.jsx[m
+[1mindex 02402fc..3df65a1 100644[m
+[1m--- a/src/components/modals/AddBookModal.jsx[m
+[1m+++ b/src/components/modals/AddBookModal.jsx[m
+[36m@@ -93,7 +93,10 @@[m [mexport default function AddBookModal({[m
+           </div>[m
+ [m
+           <div>[m
+[31m-            <label className="block text-sm font-medium text-gray-700 mb-2">Author</label>[m
+[32m+[m[32m            <label className="block text-sm font-medium text-gray-700 mb-2">[m
+[32m+[m[32m              Author[m
+[32m+[m[32m              <span className="ml-2 text-xs text-indigo-600 font-normal">(Used for AI recommendations)</span>[m
+[32m+[m[32m            </label>[m
+             <input[m
+               type="text"[m
+               value={newBook.author}[m
+[36m@@ -104,7 +107,10 @@[m [mexport default function AddBookModal({[m
+           </div>[m
+ [m
+           <div>[m
+[31m-            <label className="block text-sm font-medium text-gray-700 mb-2">Genre</label>[m
+[32m+[m[32m            <label className="block text-sm font-medium text-gray-700 mb-2">[m
+[32m+[m[32m              Genre[m
+[32m+[m[32m              <span className="ml-2 text-xs text-indigo-600 font-normal">(Used for AI recommendations)</span>[m
+[32m+[m[32m            </label>[m
+             <input[m
+               type="text"[m
+               value={newBook.genre || ''}[m
+[36m@@ -173,7 +179,10 @@[m [mexport default function AddBookModal({[m
+           </div>[m
+ [m
+           <div>[m
+[31m-            <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>[m
+[32m+[m[32m            <label className="block text-sm font-medium text-gray-700 mb-2">[m
+[32m+[m[32m              Description[m
+[32m+[m[32m              <span className="ml-2 text-xs text-indigo-600 font-normal">(Used for AI recommendations)</span>[m
+[32m+[m[32m            </label>[m
+             <textarea[m
+               value={newBook.description}[m
+               onChange={(e) => setNewBook({ ...newBook, description: e.target.value })}[m
+[36m@@ -238,7 +247,10 @@[m [mexport default function AddBookModal({[m
+           </div>[m
+ [m
+           <div>[m
+[31m-            <label className="block text-sm font-medium text-gray-700 mb-2">Favorite Character</label>[m
+[32m+[m[32m            <label className="block text-sm font-medium text-gray-700 mb-2">[m
+[32m+[m[32m              Favorite Character[m
+[32m+[m[32m              <span className="ml-2 text-xs text-indigo-600 font-normal">(Used for AI recommendations)</span>[m
+[32m+[m[32m            </label>[m
+             <input[m
+               type="text"[m
+               value={newBook.favoriteCharacter}[m
+[36m@@ -248,6 +260,19 @@[m [mexport default function AddBookModal({[m
+             />[m
+           </div>[m
+ [m
+[32m+[m[32m          <div>[m
+[32m+[m[32m            <label className="block text-sm font-medium text-gray-700 mb-2">[m
+[32m+[m[32m              Review[m
+[32m+[m[32m              <span className="ml-2 text-xs text-indigo-600 font-normal">(Used for AI recommendations & writing feedback)</span>[m
+[32m+[m[32m            </label>[m
+[32m+[m[32m            <textarea[m
+[32m+[m[32m              value={newBook.review}[m
+[32m+[m[32m              onChange={(e) => setNewBook({ ...newBook, review: e.target.value })}[m
+[32m+[m[32m              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24"[m
+[32m+[m[32m              placeholder="Your review of the book"[m
+[32m+[m[32m            />[m
+[32m+[m[32m          </div>[m
+[32m+[m
+           <div>[m
+             <label className="block text-sm font-medium text-gray-700 mb-2">Scene Summary</label>[m
+             <textarea[m
+[36m@@ -268,16 +293,6 @@[m [mexport default function AddBookModal({[m
+             />[m
+           </div>[m
+ [m
+[31m-          <div>[m
+[31m-            <label className="block text-sm font-medium text-gray-700 mb-2">Review</label>[m
+[31m-            <textarea[m
+[31m-              value={newBook.review}[m
+[31m-              onChange={(e) => setNewBook({ ...newBook, review: e.target.value })}[m
+[31m-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24"[m
+[31m-              placeholder="Your review of the book"[m
+[31m-            />[m
+[31m-          </div>[m
+[31m-[m
+           <button[m
+             onClick={onAddBook}[m
+             className="w-full py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg hover:from-indigo-700 hover:to-blue-700 transition-all font-medium"[m
+[1mdiff --git a/src/components/modals/BookDetailsModal.jsx b/src/components/modals/BookDetailsModal.jsx[m
+[1mindex 393c023..cfb4ec2 100644[m
+[1m--- a/src/components/modals/BookDetailsModal.jsx[m
+[1m+++ b/src/components/modals/BookDetailsModal.jsx[m
+[36m@@ -320,6 +320,21 @@[m [mexport default function BookDetailsModal({[m
+             />[m
+           </div>[m
+ [m
+[32m+[m[32m          <div className="mb-4">[m
+[32m+[m[32m            <label className={`block font-semibold ${theme.colors.accent} mb-2`}>[m
+[32m+[m[32m              Review ✨ (Helps AI find your perfect reads!)[m
+[32m+[m[32m            </label>[m
+[32m+[m[32m            <p className="text-xs text-gray-500 mb-2">[m
+[32m+[m[32m              🎯 Share your thoughts about what you loved (or didn't) about this book! Our AI analyzes your reviews to understand your reading preferences and suggest books that match your taste and interests.[m
+[32m+[m[32m            </p>[m
+[32m+[m[32m            <textarea[m
+[32m+[m[32m              value={localBook?.review || selectedBook.review || ''}[m
+[32m+[m[32m              onChange={(e) => handleUpdate({ review: e.target.value })}[m
+[32m+[m[32m              className={`w-full px-4 py-2 border-2 ${theme.colors.secondary} rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24`}[m
+[32m+[m[32m              placeholder="Your review of the book"[m
+[32m+[m[32m            />[m
+[32m+[m[32m          </div>[m
+[32m+[m
+           <div className="mb-4">[m
+             <h3 className={`font-semibold ${theme.colors.accent} mb-2`}>Scene Summary</h3>[m
+             <textarea[m
+[36m@@ -340,21 +355,6 @@[m [mexport default function BookDetailsModal({[m
+             />[m
+           </div>[m
+ [m
+[31m-          <div className="mb-4">[m
+[31m-            <label className={`block font-semibold ${theme.colors.accent} mb-2`}>[m
+[31m-              Review ✨ (Helps AI find your perfect reads!)[m
+[31m-            </label>[m
+[31m-            <p className="text-xs text-gray-500 mb-2">[m
+[31m-              🎯 Share your thoughts about what you loved (or didn't) about this book! Our AI analyzes your reviews to understand your reading preferences and suggest books that match your taste and interests.[m
+[31m-            </p>[m
+[31m-            <textarea[m
+[31m-              value={localBook?.review || selectedBook.review || ''}[m
+[31m-              onChange={(e) => handleUpdate({ review: e.target.value })}[m
+[31m-              className={`w-full px-4 py-2 border-2 ${theme.colors.secondary} rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24`}[m
+[31m-              placeholder="Your review of the book"[m
+[31m-            />[m
+[31m-          </div>[m
+[31m-[m
+           {(localBook?.rating ?? selectedBook.rating) <= 2 && (localBook?.rating ?? selectedBook.rating) > 0 && ([m
+             <div className="mb-4">[m
+               <h3 className="font-semibold text-gray-900 mb-2">Least Favorite Part</h3>[m
+[1mdiff --git a/src/components/modals/ChallengeModal.jsx b/src/components/modals/ChallengeModal.jsx[m
+[1mindex b680ade..45a392e 100644[m
+[1m--- a/src/components/modals/ChallengeModal.jsx[m
+[1m+++ b/src/components/modals/ChallengeModal.jsx[m
+[36m@@ -20,7 +20,10 @@[m [mexport default function ChallengeModal({[m
+   onChallengeCreated[m
+ }) {[m
+   const [challenges, setChallenges] = useState([]);[m
+[32m+[m[32m  const [closedChallenges, setClosedChallenges] = useState([]);[m
+[32m+[m[32m  const [activeTab, setActiveTab] = useState('active'); // 'active' or 'closed'[m
+   const [isLoading, setIsLoading] = useState(false);[m
+[32m+[m[32m  const [isLoadingClosed, setIsLoadingClosed] = useState(false);[m
+   const [showCreateForm, setShowCreateForm] = useState(false);[m
+   const [showShareModal, setShowShareModal] = useState(false);[m
+   const [selectedChallenge, setSelectedChallenge] = useState(null);[m
+[36m@@ -67,6 +70,22 @@[m [mexport default function ChallengeModal({[m
+     };[m
+   }, [show, currentUser]);[m
+ [m
+[32m+[m[32m  const handleTabChange = async (tab) => {[m
+[32m+[m[32m    setActiveTab(tab);[m
+[32m+[m[41m    [m
+[32m+[m[32m    // When user clicks Closed tab, load detailed data (profiles & progress) for closed challenges[m
+[32m+[m[32m    // The challenges themselves are already loaded, but we haven't loaded their user profiles and progress yet[m
+[32m+[m[32m    if (tab === 'closed' && closedChallenges.length > 0) {[m
+[32m+[m[32m      // Check if we've already loaded the detailed data by checking if any closed challenge has progress data[m
+[32m+[m[32m      const hasLoadedData = closedChallenges.some(c => challengeUserProgress[c.id]);[m
+[32m+[m[41m      [m
+[32m+[m[32m      if (!hasLoadedData) {[m
+[32m+[m[32m        // Load user profiles and progress data for closed challenges (lazy loading)[m
+[32m+[m[32m        await loadClosedChallengesData(closedChallenges);[m
+[32m+[m[32m      }[m
+[32m+[m[32m    }[m
+[32m+[m[32m  };[m
+[32m+[m
+   const loadChallenges = async () => {[m
+     if (!currentUser) return;[m
+     setIsLoading(true);[m
+[36m@@ -75,11 +94,63 @@[m [mexport default function ChallengeModal({[m
+       if (error) {[m
+         console.error('Error loading challenges:', error);[m
+       } else {[m
+[31m-        setChallenges(data || []);[m
+[32m+[m[32m        // TODO: Enhance closed challenges evaluation to persist status in DB[m
+[32m+[m[32m        // Instead of evaluating every time on load, persist is_closed status in database[m
+[32m+[m[32m        // when a challenge is evaluated as closed. Next time onwards, only evaluate[m
+[32m+[m[32m        // non-closed challenges. This will improve performance and reduce redundant date calculations.[m
+[32m+[m[32m        // Steps:[m
+[32m+[m[32m        // 1. Add is_closed boolean field to bk_reading_challenges table[m
+[32m+[m[32m        // 2. When a challenge is evaluated as closed, update is_closed = true in DB[m
+[32m+[m[32m        // 3. Filter out challenges where is_closed = true before evaluation[m
+[32m+[m[32m        // 4. Only evaluate challenges where is_closed = false or null[m
+[32m+[m[32m        // 5. Consider adding a scheduled job/function to mark challenges as closed daily[m
+[32m+[m[41m        [m
+[32m+[m[32m        // Separate active and closed challenges[m
+[32m+[m[32m        const allChallenges = data || [];[m
+[32m+[m[32m        const active = [];[m
+[32m+[m[32m        const closed = [];[m
+[32m+[m[41m        [m
+[32m+[m[32m        // Helper functions for date comparison (defined inline to avoid hoisting issues)[m
+[32m+[m[32m        const isChallengeActiveCheck = (challenge) => {[m
+[32m+[m[32m          if (challenge.is_completed) return false;[m
+[32m+[m[32m          const now = new Date();[m
+[32m+[m[32m          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());[m
+[32m+[m[32m          const start = new Date(challenge.start_date);[m
+[32m+[m[32m          const startOfStartDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());[m
+[32m+[m[32m          const end = new Date(challenge.end_date);[m
+[32m+[m[32m          const endOfEndDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());[m
+[32m+[m[32m          endOfEndDay.setDate(endOfEndDay.getDate() + 1);[m
+[32m+[m[32m          return today >= startOfStartDay && today < endOfEndDay;[m
+[32m+[m[32m        };[m
+[32m+[m[41m        [m
+[32m+[m[32m        const isChallengeExpiredCheck = (challenge) => {[m
+[32m+[m[32m          if (challenge.is_completed) return false;[m
+[32m+[m[32m          const now = new Date();[m
+[32m+[m[32m          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());[m
+[32m+[m[32m          const end = new Date(challenge.end_date);[m
+[32m+[m[32m          const endOfEndDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());[m
+[32m+[m[32m          endOfEndDay.setDate(endOfEndDay.getDate() + 1);[m
+[32m+[m[32m          return today >= endOfEndDay;[m
+[32m+[m[32m        };[m
+[32m+[m[41m        [m
+[32m+[m[32m        allChallenges.forEach(challenge => {[m
+[32m+[m[32m          const isActive = isChallengeActiveCheck(challenge);[m
+[32m+[m[32m          const isExpired = isChallengeExpiredCheck(challenge);[m
+[32m+[m[41m          [m
+[32m+[m[32m          if (isActive || (!isExpired && !challenge.is_completed)) {[m
+[32m+[m[32m            active.push(challenge);[m
+[32m+[m[32m          } else if (isExpired || challenge.is_completed) {[m
+[32m+[m[32m            closed.push(challenge);[m
+[32m+[m[32m          }[m
+[32m+[m[32m        });[m
+[32m+[m[41m        [m
+[32m+[m[32m        // Store both active and closed challenges[m
+[32m+[m[32m        setChallenges(active);[m
+[32m+[m[32m        setClosedChallenges(closed); // Store closed challenges but don't load their detailed data yet[m
+         [m
+[31m-        // Load profiles for all shared users across all challenges[m
+[32m+[m[32m        // Load profiles for all shared users across active challenges only[m
+         const sharedUserIds = new Set();[m
+[31m-        (data || []).forEach(challenge => {[m
+[32m+[m[32m        active.forEach(challenge => {[m
+           if (challenge.shared_with && Array.isArray(challenge.shared_with)) {[m
+             challenge.shared_with.forEach(userId => {[m
+               if (userId && userId !== currentUser.id) {[m
+[36m@@ -93,8 +164,8 @@[m [mexport default function ChallengeModal({[m
+         const profiles = {};[m
+         const progressData = {};[m
+         [m
+[31m-        // Load profiles and progress for all challenges[m
+[31m-        for (const challenge of (data || [])) {[m
+[32m+[m[32m        // Load profiles and progress for active challenges only[m
+[32m+[m[32m        for (const challenge of active) {[m
+           // Include creator in profiles[m
+           if (challenge.user_id && !sharedUserIds.has(challenge.user_id)) {[m
+             sharedUserIds.add(challenge.user_id);[m
+[36m@@ -120,7 +191,6 @@[m [mexport default function ChallengeModal({[m
+         }[m
+         setSharedUserProfiles(profiles);[m
+         setChallengeUserProgress(progressData);[m
+[31m-        setChallengeUserProgress(progressData);[m
+       }[m
+     } catch (error) {[m
+       console.error('Error loading challenges:', error);[m
+[36m@@ -292,10 +362,36 @@[m [mexport default function ChallengeModal({[m
+   };[m
+ [m
+   const isChallengeActive = (challenge) => {[m
+[32m+[m[32m    if (challenge.is_completed) return false;[m
+[32m+[m[41m    [m
+     const now = new Date();[m
+[32m+[m[32m    // Set to start of day (midnight) for accurate date comparison[m
+[32m+[m[32m    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());[m
+[32m+[m[41m    [m
+     const start = new Date(challenge.start_date);[m
+[32m+[m[32m    const startOfStartDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());[m
+[32m+[m[41m    [m
+     const end = new Date(challenge.end_date);[m
+[31m-    return now >= start && now <= end && !challenge.is_completed;[m
+[32m+[m[32m    const endOfEndDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());[m
+[32m+[m[32m    // Add 1 day to end date so it includes the full end date (end of day)[m
+[32m+[m[32m    endOfEndDay.setDate

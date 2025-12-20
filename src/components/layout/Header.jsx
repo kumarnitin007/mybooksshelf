@@ -18,6 +18,7 @@ import { ANIMAL_THEMES } from '../../constants/animalThemes';
  * @param {function} onShowRewards - Callback to show rewards modal
  * @param {function} onShowReadingHistory - Callback to show reading history modal
  * @param {function} onShowAdmin - Callback to show admin console modal
+ * @param {function} onShowWelcome - Callback to show welcome modal
  */
 export default function Header({
   currentUser,
@@ -33,7 +34,8 @@ export default function Header({
   onShowChallenges,
   onShowRewards,
   onShowReadingHistory,
-  onShowAdmin
+  onShowAdmin,
+  onShowWelcome
 }) {
   const theme = activeShelf ? ANIMAL_THEMES[activeShelf.animal] || ANIMAL_THEMES.cat : ANIMAL_THEMES.cat;
 
@@ -42,9 +44,13 @@ export default function Header({
       <div className="max-w-7xl mx-auto px-2 sm:px-4 py-3 sm:py-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-            <div className={`bg-gradient-to-br ${theme.colors.primary} p-2 sm:p-3 rounded-xl flex items-center justify-center`}>
+            <button
+              onClick={onShowWelcome}
+              className={`bg-gradient-to-br ${theme.colors.primary} p-2 sm:p-3 rounded-xl flex items-center justify-center hover:scale-105 transition-transform cursor-pointer`}
+              title="My Bookshelf"
+            >
               <span className="text-2xl sm:text-4xl">📚</span>
-            </div>
+            </button>
             <div>
               <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Books</h1>
               <p className="text-xs sm:text-base text-gray-600">{totalBooks} books</p>

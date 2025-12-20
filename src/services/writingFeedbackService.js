@@ -88,7 +88,10 @@ export const updateWritingFeedbackParsed = async (feedbackId, userId, parsedData
       strengths = [],
       improvements = [],
       specificSuggestions = [],
-      tips = []
+      tips = [],
+      suggestedReview = null,
+      suggestedReviews = null,
+      suggestedReviewForBook = null
     } = parsedData;
 
     const updateData = {
@@ -99,7 +102,14 @@ export const updateWritingFeedbackParsed = async (feedbackId, userId, parsedData
       strengths: Array.isArray(strengths) ? strengths : [],
       improvements: Array.isArray(improvements) ? improvements : [],
       specific_suggestions: Array.isArray(specificSuggestions) ? specificSuggestions : [],
-      tips: Array.isArray(tips) ? tips : []
+      tips: Array.isArray(tips) ? tips : [],
+      // Store suggested review(s) - prefer array format, fallback to single
+      suggested_review: parsedData.suggestedReview || null,
+      suggested_reviews: Array.isArray(parsedData.suggestedReviews) ? parsedData.suggestedReviews : null,
+      // Store which book the first suggested review is for (for backward compatibility)
+      suggested_review_for_book_title: parsedData.suggestedReviewForBook?.title || null,
+      suggested_review_for_book_author: parsedData.suggestedReviewForBook?.author || null,
+      original_review_text: parsedData.suggestedReviewForBook?.originalReview || null
     };
 
     const { data, error } = await supabase

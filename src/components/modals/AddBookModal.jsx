@@ -181,7 +181,6 @@ export default function AddBookModal({
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Description
-              <span className="ml-2 text-xs text-indigo-600 font-normal">(Used for AI recommendations)</span>
             </label>
             <textarea
               value={newBook.description}
@@ -248,8 +247,38 @@ export default function AddBookModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
+              Book Summary ✨ (Will be used in AI)
+            </label>
+            <p className="text-xs text-gray-500 mb-2">
+              🎯 Share a summary of the book! Our AI uses this to understand the books you've read and provide better recommendations and writing feedback.
+            </p>
+            <textarea
+              value={newBook.sceneSummary}
+              onChange={(e) => setNewBook({ ...newBook, sceneSummary: e.target.value })}
+              className="w-full px-4 py-2 border-2 border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24"
+              placeholder="Book summary"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Review ✨ (Will be used in AI)
+            </label>
+            <p className="text-xs text-gray-500 mb-2">
+              🎯 Share your thoughts about what you loved (or didn't) about this book! Our AI analyzes your reviews to understand your reading preferences and suggest books that match your taste and interests.
+            </p>
+            <textarea
+              value={newBook.review}
+              onChange={(e) => setNewBook({ ...newBook, review: e.target.value })}
+              className="w-full px-4 py-2 border-2 border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24"
+              placeholder="Your review of the book"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Favorite Character
-              <span className="ml-2 text-xs text-indigo-600 font-normal">(Used for AI recommendations)</span>
+              <span className="ml-2 text-xs text-gray-500 font-normal">(Will not be used in AI)</span>
             </label>
             <input
               type="text"
@@ -257,29 +286,6 @@ export default function AddBookModal({
               onChange={(e) => setNewBook({ ...newBook, favoriteCharacter: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Your favorite character"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Review
-              <span className="ml-2 text-xs text-indigo-600 font-normal">(Used for AI recommendations & writing feedback)</span>
-            </label>
-            <textarea
-              value={newBook.review}
-              onChange={(e) => setNewBook({ ...newBook, review: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24"
-              placeholder="Your review of the book"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Scene Summary</label>
-            <textarea
-              value={newBook.sceneSummary}
-              onChange={(e) => setNewBook({ ...newBook, sceneSummary: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24"
-              placeholder="Memorable scene or summary"
             />
           </div>
 

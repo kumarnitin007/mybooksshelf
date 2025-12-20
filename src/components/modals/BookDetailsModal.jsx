@@ -305,24 +305,23 @@ export default function BookDetailsModal({
           </div>
 
           <div className="mb-4">
-            <label className={`block font-semibold ${theme.colors.accent} mb-2 flex items-center gap-2`}>
-              <Heart className={`w-5 h-5 ${theme.colors.accent}`} />
-              Favorite Character ✨ (Helps AI find your perfect reads!)
+            <label className={`block font-semibold ${theme.colors.accent} mb-2`}>
+              Book Summary ✨ (Will be used in AI)
             </label>
             <p className="text-xs text-gray-500 mb-2">
-              🎯 Tell us about characters that made an impact! Our AI uses this to understand what types of characters and stories resonate with you, helping suggest books with similar compelling characters.
+              🎯 Share a summary of the book! Our AI uses this to understand the books you've read and provide better recommendations and writing feedback.
             </p>
             <textarea
-              value={localBook?.favoriteCharacter || selectedBook.favoriteCharacter || ''}
-              onChange={(e) => handleUpdate({ favoriteCharacter: e.target.value })}
+              value={localBook?.sceneSummary || selectedBook.sceneSummary || ''}
+              onChange={(e) => handleUpdate({ sceneSummary: e.target.value })}
               className={`w-full px-4 py-2 border-2 ${theme.colors.secondary} rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24`}
-              placeholder="Your favorite character from the book"
+              placeholder="Book summary"
             />
           </div>
 
           <div className="mb-4">
             <label className={`block font-semibold ${theme.colors.accent} mb-2`}>
-              Review ✨ (Helps AI find your perfect reads!)
+              Review ✨ (Will be used in AI)
             </label>
             <p className="text-xs text-gray-500 mb-2">
               🎯 Share your thoughts about what you loved (or didn't) about this book! Our AI analyzes your reviews to understand your reading preferences and suggest books that match your taste and interests.
@@ -336,12 +335,16 @@ export default function BookDetailsModal({
           </div>
 
           <div className="mb-4">
-            <h3 className={`font-semibold ${theme.colors.accent} mb-2`}>Scene Summary</h3>
+            <label className={`block font-semibold ${theme.colors.accent} mb-2 flex items-center gap-2`}>
+              <Heart className={`w-5 h-5 ${theme.colors.accent}`} />
+              Favorite Character
+              <span className="ml-2 text-xs text-gray-500 font-normal">(Will not be used in AI)</span>
+            </label>
             <textarea
-              value={localBook?.sceneSummary || selectedBook.sceneSummary || ''}
-              onChange={(e) => handleUpdate({ sceneSummary: e.target.value })}
+              value={localBook?.favoriteCharacter || selectedBook.favoriteCharacter || ''}
+              onChange={(e) => handleUpdate({ favoriteCharacter: e.target.value })}
               className={`w-full px-4 py-2 border-2 ${theme.colors.secondary} rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-24`}
-              placeholder="Memorable scene or summary"
+              placeholder="Your favorite character from the book"
             />
           </div>
 

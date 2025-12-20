@@ -16,7 +16,7 @@ export const ANIMAL_THEMES = {
     colors: { primary: 'from-pink-500 to-rose-500', secondary: 'bg-pink-100', accent: 'text-pink-600' },
     decorations: ['🐱', '🐾', '💕', '⭐'],
     animation: 'float',
-    // gifUrl: 'https://example.com/cat-animated.gif' // Optional: Add GIF URL here
+    gifUrl: 'https://media.giphy.com/media/Duzbk7OJGmNwwvB4i0/giphy.gif' // Cat studying GIF from Giphy (Mochimons)
   },
   dog: { 
     name: 'Dog', 
@@ -24,7 +24,7 @@ export const ANIMAL_THEMES = {
     colors: { primary: 'from-amber-500 to-orange-500', secondary: 'bg-amber-100', accent: 'text-amber-600' },
     decorations: ['🐶', '🦴', '🎾', '⭐'],
     animation: 'bounce',
-    // gifUrl: 'https://example.com/dog-animated.gif' // Optional
+    gifUrl: 'https://media.giphy.com/media/3LrK7Q7UhF5MnhZ5ja/giphy.gif' // Dog reading book GIF from Giphy (Texas A&M University)
   },
   bunny: { 
     name: 'Bunny', 
@@ -32,7 +32,7 @@ export const ANIMAL_THEMES = {
     colors: { primary: 'from-purple-500 to-indigo-500', secondary: 'bg-purple-100', accent: 'text-purple-600' },
     decorations: ['🐰', '🥕', '🌸', '✨'],
     animation: 'hop',
-    // gifUrl: 'https://example.com/bunny-animated.gif' // Optional
+    gifUrl: 'https://media.giphy.com/media/8dYmJ6Buo3lYY/giphy.gif' // Baby reading book GIF from Giphy
   },
   bear: { 
     name: 'Bear', 

@@ -92,18 +92,51 @@ export default function WritingFeedbackModal({
 
     // If we have parsed data from DB, use it directly
     if (parsedData) {
+      // Extract suggested reviews - handle both array format and single format
+      let suggestedReviews = [];
+      
+      // Handle JSONB column - Supabase returns it as parsed JSON, but check if it's a string first
+      let suggestedReviewsData = parsedData.suggested_reviews;
+      if (typeof suggestedReviewsData === 'string') {
+        try {
+          suggestedReviewsData = JSON.parse(suggestedReviewsData);
+        } catch (e) {
+          console.warn('Failed to parse suggested_reviews as JSON:', e);
+          suggestedReviewsData = null;
+        }
+      }
+      
+      if (Array.isArray(suggestedReviewsData) && suggestedReviewsData.length > 0) {
+        suggestedReviews = suggestedReviewsData;
+      } else if (parsedData.suggested_review) {
+        // Fallback to single suggested review format
+        suggestedReviews = [{
+          bookTitle: parsedData.suggested_review_for_book_title || 'Unknown Book',
+          bookAuthor: parsedData.suggested_review_for_book_author || 'Unknown Author',
+          originalReview: parsedData.original_review_text || '',
+          suggestedReview: parsedData.suggested_review
+        }];
+      }
+      
+      // Debug logging
+      if (suggestedReviews.length > 0) {
+        console.log('[WritingFeedbackModal] Found suggested reviews:', suggestedReviews.length);
+      }
+      
       const sections = {
         gradeLevel: parsedData.reading_grade_level || null,
         strengths: Array.isArray(parsedData.strengths) ? parsedData.strengths : [],
         improvements: Array.isArray(parsedData.improvements) ? parsedData.improvements : [],
         suggestions: Array.isArray(parsedData.specific_suggestions) ? parsedData.specific_suggestions : [],
         tips: Array.isArray(parsedData.tips) ? parsedData.tips : [],
-        overall: parsedData.overall_assessment || null
+        overall: parsedData.overall_assessment || null,
+        suggestedReviews: suggestedReviews
       };
 
       // If we have structured data, render it
       if (sections.gradeLevel || sections.strengths.length > 0 || 
-          sections.improvements.length > 0 || sections.suggestions.length > 0) {
+          sections.improvements.length > 0 || sections.suggestions.length > 0 ||
+          sections.suggestedReviews.length > 0) {
         return renderStructuredFeedback(sections);
       }
     }
@@ -366,6 +399,53 @@ export default function WritingFeedbackModal({
             </div>
           </div>
         )}
+
+        {sections.suggestedReviews && sections.suggestedReviews.length > 0 && (
+          <div className="bg-gradient-to-br from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-xl p-5">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-yellow-100 rounded-lg flex-shrink-0">
+                <FileText className="w-5 h-5 text-yellow-600" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-bold text-yellow-900 mb-4 flex items-center gap-2">
+                  <PenTool className="w-4 h-4" />
+                  Improved Review Suggestions
+                </h4>
+                <p className="text-yellow-800 text-sm mb-4">
+                  Here are improved versions of your reviews that demonstrate better writing skills while keeping your original message:
+                </p>
+                <div className="space-y-4">
+                  {sections.suggestedReviews.map((item, idx) => (
+                    <div key={idx} className="bg-white rounded-lg p-4 border border-yellow-200">
+                      <div className="mb-3">
+                        <h5 className="font-semibold text-gray-900 text-sm mb-1">
+                          📖 {item.bookTitle || 'Unknown Book'}
+                        </h5>
+                        {item.bookAuthor && (
+                          <p className="text-xs text-gray-600 mb-2">by {item.bookAuthor}</p>
+                        )}
+                      </div>
+                      
+                      {item.originalReview && (
+                        <div className="mb-3 p-3 bg-gray-50 rounded border border-gray-200">
+                          <p className="text-xs font-semibold text-gray-700 mb-1">Your Original Review:</p>
+                          <p className="text-sm text-gray-700 leading-relaxed">{item.originalReview}</p>
+                        </div>
+                      )}
+                      
+                      <div className="p-3 bg-gradient-to-br from-yellow-50 to-orange-50 rounded border-2 border-yellow-200">
+                        <p className="text-xs font-semibold text-yellow-900 mb-1 flex items-center gap-1">
+                          ✨ Improved Review:
+                        </p>
+                        <p className="text-sm text-yellow-900 leading-relaxed font-medium">{item.suggestedReview}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -385,24 +465,24 @@ export default function WritingFeedbackModal({
     selectedBooksData.forEach((book, index) => {
       prompt += `Review ${index + 1}:\n`;
       prompt += `Book: "${book.title}" by ${book.author || 'Unknown Author'}\n`;
-      prompt += `Review:\n${book.review}\n\n`;
+      // Include book summary if available
+      const summaryText = (book.sceneSummary || book.scene_summary || '').trim();
+      if (summaryText) {
+        prompt += `Book Summary: ${summaryText}\n`;
+      } else {
+        // Debug: Log if summary is missing
+        console.log(`[Writing Feedback Preview] Book "${book.title}" - sceneSummary:`, book.sceneSummary, 'scene_summary:', book.scene_summary, 'all keys:', Object.keys(book));
+      }
+      // Review is required
+      const reviewText = (book.review || '').trim();
+      if (reviewText) {
+        prompt += `Review:\n${reviewText}\n\n`;
+      } else {
+        console.warn(`[Writing Feedback Preview] Book "${book.title}" has no review text`);
+      }
     });
     
-    prompt += `IMPORTANT: Please provide your feedback as a valid JSON object with the following structure. The example below is for structure reference only - use actual values based on your analysis:\n\n`;
-    prompt += `{\n`;
-    prompt += `  "readingGradeLevel": "8th grade",\n`;
-    prompt += `  "writingSkillLevel": 7,\n`;
-    prompt += `  "skillBreakdown": {\n`;
-    prompt += `    "contentUnderstanding": 8,\n`;
-    prompt += `    "engagement": 8,\n`;
-    prompt += `    "writingMechanics": 6\n`;
-    prompt += `  },\n`;
-    prompt += `  "strengths": ["Clear and engaging writing style", "Good use of descriptive language", "Well-organized thoughts"],\n`;
-    prompt += `  "improvements": ["Grammar and punctuation need work", "Could use more varied sentence structure", "Deeper analysis would strengthen reviews"],\n`;
-    prompt += `  "specificSuggestions": ["Practice using commas correctly", "Try varying sentence lengths", "Include specific examples from books"],\n`;
-    prompt += `  "tips": ["Start with a brief summary", "State your opinion clearly", "Use examples from the book"],\n`;
-    prompt += `  "overallAssessment": "The student shows strong potential with engaging writing. With focus on grammar and deeper analysis, their reviews will become even more compelling."\n`;
-    prompt += `}\n\n`;
+    prompt += `IMPORTANT: Please provide your feedback as a valid JSON object with the following structure. Analyze the student's actual writing and provide specific, personalized feedback:\n\n`;
     prompt += `Requirements:\n`;
     prompt += `- "readingGradeLevel": A single string like "6th grade", "9th grade", "high school level", or "college level" - assess the reading level demonstrated in the reviews\n`;
     prompt += `- "writingSkillLevel": REQUIRED - A number from 1 to 10 representing the overall writing skill level. This is a critical field. Rate this based on the student's age/grade level if provided.\n`;
@@ -411,7 +491,17 @@ export default function WritingFeedbackModal({
     prompt += `- "improvements": An array of 3-5 specific areas for improvement (each as a string)\n`;
     prompt += `- "specificSuggestions": An array of 5-7 actionable suggestions (each as a string)\n`;
     prompt += `- "tips": An array of 3-5 tips for writing better reviews (each as a string)\n`;
-    prompt += `- "overallAssessment": A single string with 2-3 sentences summarizing the student's writing ability and explaining the writingSkillLevel rating\n\n`;
+    prompt += `- "overallAssessment": A single string with 2-3 sentences summarizing the student's writing ability and explaining the writingSkillLevel rating\n`;
+    prompt += `- "suggestedReviews": REQUIRED - Provide an improved version for EACH review analyzed. Format as an array of objects, where each object contains:\n`;
+    prompt += `  * "bookTitle": The title of the book (string)\n`;
+    prompt += `  * "bookAuthor": The author of the book (string)\n`;
+    prompt += `  * "originalReview": The student's original review text (string)\n`;
+    prompt += `  * "suggestedReview": An improved version that:\n`;
+    prompt += `    - Captures the same message and key points from the student's original review\n`;
+    prompt += `    - Demonstrates a step up in writing skills and level (better grammar, more varied sentence structure, deeper analysis)\n`;
+    prompt += `    - Maintains the student's authentic voice while showing improvement\n`;
+    prompt += `    - Is appropriate for the student's age/grade level (one step up, not too advanced)\n`;
+    prompt += `  Example structure: [{"bookTitle": "Book 1", "bookAuthor": "Author 1", "originalReview": "...", "suggestedReview": "..."}, {"bookTitle": "Book 2", ...}]\n\n`;
     prompt += `Please be encouraging, constructive, and specific. Return ONLY valid JSON, no additional text before or after.`;
     
     return prompt;
@@ -1247,9 +1337,14 @@ export default function WritingFeedbackModal({
                           <div className="text-xs text-gray-500 mt-1 line-clamp-2">
                             {book.review?.substring(0, 100)}...
                           </div>
-                          {book.review && (
+                          {(book.review || book.sceneSummary) && (
                             <div className="text-xs text-green-600 font-medium mt-1">
-                              📝 {book.review.trim().split(/\s+/).filter(word => word.length > 0).length} words
+                              📝 {(() => {
+                                const reviewWords = (book.review || '').trim().split(/\s+/).filter(word => word.length > 0).length;
+                                const summaryWords = (book.sceneSummary || '').trim().split(/\s+/).filter(word => word.length > 0).length;
+                                const totalWords = reviewWords + summaryWords;
+                                return `${totalWords} words${summaryWords > 0 ? ' (review + summary)' : ' (review only)'}`;
+                              })()}
                             </div>
                           )}
                         </div>

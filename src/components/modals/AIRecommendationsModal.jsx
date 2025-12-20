@@ -156,8 +156,8 @@ export default function AIRecommendationsModal({
         if (book.review && book.review.trim()) {
           prompt += `\n  Review: "${truncateText(book.review, MAX_FIELD_CHARS)}"`;
         }
-        if (book.favoriteCharacter && book.favoriteCharacter.trim()) {
-          prompt += `\n  Favorite Character: ${truncateText(book.favoriteCharacter, MAX_FIELD_CHARS)}`;
+        if (book.sceneSummary && book.sceneSummary.trim()) {
+          prompt += `\n  Book Summary: ${truncateText(book.sceneSummary, MAX_FIELD_CHARS)}`;
         }
         prompt += `\n`;
       });

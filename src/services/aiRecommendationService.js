@@ -195,24 +195,26 @@ export const generateWritingStyleFeedback = async (booksWithReviews, userId = nu
     booksWithReviews.forEach((book, index) => {
       prompt += `Review ${index + 1}:\n`;
       prompt += `Book: "${book.title}" by ${book.author || 'Unknown Author'}\n`;
-      prompt += `Review:\n${book.review}\n\n`;
+      // Include book summary if available (sceneSummary field)
+      const summaryText = (book.sceneSummary || book.scene_summary || '').trim();
+      if (summaryText) {
+        prompt += `Book Summary: ${summaryText}\n`;
+        console.log(`[Writing Feedback API] Book "${book.title}" - INCLUDED summary (${summaryText.length} chars)`);
+      } else {
+        // Debug: Log if summary is missing when we expect it
+        console.log(`[Writing Feedback API] Book "${book.title}" - NO summary. sceneSummary:`, book.sceneSummary, 'scene_summary:', book.scene_summary, 'Available keys:', Object.keys(book));
+      }
+      // Review is required for writing feedback - always include it
+      const reviewText = (book.review || '').trim();
+      if (reviewText) {
+        prompt += `Review:\n${reviewText}\n\n`;
+      } else {
+        // This shouldn't happen as books are filtered, but handle gracefully
+        console.warn(`[Writing Feedback API] Book "${book.title}" has no review text - skipping from analysis`);
+      }
     });
     
-    prompt += `IMPORTANT: Please provide your feedback as a valid JSON object with the following structure. The example below is for structure reference only - use actual values based on your analysis:\n\n`;
-    prompt += `{\n`;
-    prompt += `  "readingGradeLevel": "8th grade",\n`;
-    prompt += `  "writingSkillLevel": 7,\n`;
-    prompt += `  "skillBreakdown": {\n`;
-    prompt += `    "contentUnderstanding": 8,\n`;
-    prompt += `    "engagement": 8,\n`;
-    prompt += `    "writingMechanics": 6\n`;
-    prompt += `  },\n`;
-    prompt += `  "strengths": ["Clear and engaging writing style", "Good use of descriptive language", "Well-organized thoughts"],\n`;
-    prompt += `  "improvements": ["Grammar and punctuation need work", "Could use more varied sentence structure", "Deeper analysis would strengthen reviews"],\n`;
-    prompt += `  "specificSuggestions": ["Practice using commas correctly", "Try varying sentence lengths", "Include specific examples from books"],\n`;
-    prompt += `  "tips": ["Start with a brief summary", "State your opinion clearly", "Use examples from the book"],\n`;
-    prompt += `  "overallAssessment": "The student shows strong potential with engaging writing. With focus on grammar and deeper analysis, their reviews will become even more compelling."\n`;
-    prompt += `}\n\n`;
+    prompt += `IMPORTANT: Please provide your feedback as a valid JSON object with the following structure. Analyze the student's actual writing and provide specific, personalized feedback:\n\n`;
     prompt += `Requirements:\n`;
     prompt += `- "readingGradeLevel": A single string like "6th grade", "9th grade", "high school level", or "college level" - assess the reading level demonstrated in the reviews\n`;
     prompt += `- "writingSkillLevel": REQUIRED - A number from 1 to 10 representing the overall writing skill level. This is a critical field. Rate this based on the student's age/grade level if provided. For example, if the student is 12 years old, rate it on a scale of 1-10 for a 12-year-old. This should be a single integer (e.g., 7, not 7.5). Consider grammar, clarity, engagement, depth of analysis, and overall writing quality.\n`;
@@ -221,7 +223,17 @@ export const generateWritingStyleFeedback = async (booksWithReviews, userId = nu
     prompt += `- "improvements": An array of 3-5 specific areas for improvement (each as a string)\n`;
     prompt += `- "specificSuggestions": An array of 5-7 actionable suggestions (each as a string)\n`;
     prompt += `- "tips": An array of 3-5 tips for writing better reviews (each as a string)\n`;
-    prompt += `- "overallAssessment": A single string with 2-3 sentences summarizing the student's writing ability and explaining the writingSkillLevel rating\n\n`;
+    prompt += `- "overallAssessment": A single string with 2-3 sentences summarizing the student's writing ability and explaining the writingSkillLevel rating\n`;
+    prompt += `- "suggestedReviews": REQUIRED - Provide an improved version for EACH review analyzed. Format as an array of objects, where each object contains:\n`;
+    prompt += `  * "bookTitle": The title of the book (string)\n`;
+    prompt += `  * "bookAuthor": The author of the book (string)\n`;
+    prompt += `  * "originalReview": The student's original review text (string)\n`;
+    prompt += `  * "suggestedReview": An improved version that:\n`;
+    prompt += `    - Captures the same message and key points from the student's original review\n`;
+    prompt += `    - Demonstrates a step up in writing skills and level (better grammar, more varied sentence structure, deeper analysis)\n`;
+    prompt += `    - Maintains the student's authentic voice while showing improvement\n`;
+    prompt += `    - Is appropriate for the student's age/grade level (one step up, not too advanced)\n`;
+    prompt += `  Example structure: [{"bookTitle": "Book 1", "bookAuthor": "Author 1", "originalReview": "...", "suggestedReview": "..."}, {"bookTitle": "Book 2", ...}]\n\n`;
     prompt += `Please be encouraging, constructive, and specific. Return ONLY valid JSON, no additional text before or after.`;
 
     // Call AI API for writing feedback (returns JSON)
@@ -368,7 +380,34 @@ export const generateWritingStyleFeedback = async (booksWithReviews, userId = nu
           strengths: Array.isArray(feedbackJson.strengths) ? feedbackJson.strengths : [],
           improvements: Array.isArray(feedbackJson.improvements) ? feedbackJson.improvements : [],
           specificSuggestions: Array.isArray(feedbackJson.specificSuggestions) ? feedbackJson.specificSuggestions : [],
-          tips: Array.isArray(feedbackJson.tips) ? feedbackJson.tips : []
+          tips: Array.isArray(feedbackJson.tips) ? feedbackJson.tips : [],
+          // Handle both old format (single suggestedReview) and new format (suggestedReviews array)
+          suggestedReviews: Array.isArray(feedbackJson.suggestedReviews) 
+            ? feedbackJson.suggestedReviews 
+            : (feedbackJson.suggestedReview 
+                ? [{
+                    bookTitle: booksWithReviews[booksWithReviews.length - 1]?.title || 'Unknown',
+                    bookAuthor: booksWithReviews[booksWithReviews.length - 1]?.author || 'Unknown Author',
+                    originalReview: booksWithReviews[booksWithReviews.length - 1]?.review || '',
+                    suggestedReview: feedbackJson.suggestedReview
+                  }]
+                : null),
+          // Legacy field for backward compatibility (use first suggested review if array exists)
+          suggestedReview: Array.isArray(feedbackJson.suggestedReviews) && feedbackJson.suggestedReviews.length > 0
+            ? feedbackJson.suggestedReviews[0].suggestedReview
+            : (feedbackJson.suggestedReview || null),
+          // Store which book the first suggested review is for (for backward compatibility)
+          suggestedReviewForBook: Array.isArray(feedbackJson.suggestedReviews) && feedbackJson.suggestedReviews.length > 0
+            ? {
+                title: feedbackJson.suggestedReviews[0].bookTitle || null,
+                author: feedbackJson.suggestedReviews[0].bookAuthor || null,
+                originalReview: feedbackJson.suggestedReviews[0].originalReview || null
+              }
+            : (booksWithReviews.length > 0 ? {
+                title: booksWithReviews[booksWithReviews.length - 1].title || null,
+                author: booksWithReviews[booksWithReviews.length - 1].author || null,
+                originalReview: booksWithReviews[booksWithReviews.length - 1].review || null
+              } : null)
         }
       : parseWritingFeedbackResponse(feedbackText);
 
@@ -597,10 +636,10 @@ const buildRecommendationPrompt = (analysis, userProfile) => {
         bookEntry += `\n  Review: "${truncatedReview}"`;
       }
       
-      // Include favorite character if available (truncated to 200 chars)
-      if (book.favoriteCharacter && book.favoriteCharacter.trim()) {
-        const truncatedCharacter = truncateText(book.favoriteCharacter, MAX_FIELD_CHARS);
-        bookEntry += `\n  Favorite Character: ${truncatedCharacter}`;
+      // Include book summary if available (truncated to 200 chars)
+      if (book.sceneSummary && book.sceneSummary.trim()) {
+        const truncatedSummary = truncateText(book.sceneSummary, MAX_FIELD_CHARS);
+        bookEntry += `\n  Book Summary: ${truncatedSummary}`;
       }
       
       bookEntry += `\n`;
@@ -989,7 +1028,8 @@ function parseWritingFeedbackResponse(feedback) {
     strengths: [],
     improvements: [],
     specificSuggestions: [],
-    tips: []
+    tips: [],
+    suggestedReview: null
   };
 
   if (!feedback) return parsed;

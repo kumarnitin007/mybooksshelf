@@ -25,6 +25,7 @@ import RewardsModal from './components/modals/RewardsModal';
 import ReadingHistoryModal from './components/modals/ReadingHistoryModal';
 import RewardUnlockedModal from './components/modals/RewardUnlockedModal';
 import AdminModal from './components/modals/AdminModal';
+import BookshelfWelcomeModal from './components/modals/BookshelfWelcomeModal';
 import Header from './components/layout/Header';
 import UserStatsSection from './components/layout/UserStatsSection';
 import BookshelfDisplay from './components/bookshelf/BookshelfDisplay';
@@ -135,6 +136,7 @@ export default function App() {
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [bookToMove, setBookToMove] = useState(null);
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [failedImages, setFailedImages] = useState(new Set()); // Track books with failed images after retries
   const imageRetryCountsRef = useRef({}); // Use ref to avoid re-renders during retries
   const failedImagesRef = useRef(new Set()); // Use ref to avoid re-renders during retries
@@ -2079,12 +2081,93 @@ export default function App() {
   }, [currentUser, defaultUser]);
 
   if (!currentUser) {
+    // Get all animal emojis from themes
+    const animalEmojis = Object.values(ANIMAL_THEMES).map(theme => theme.emoji);
+    
     return (
       <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-red-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">📚</div>
-          <div className="animate-pulse text-4xl mb-4">📚</div>
-          <p className="text-gray-700 font-medium">Getting your bookshelf ready...</p>
+        <div className="text-center relative">
+          {/* Animal emojis arranged in a circle around the bookshelf */}
+          <div className="relative w-64 h-64 mx-auto mb-6">
+            {/* Center bookshelf icon */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-8xl animate-pulse">📚</div>
+            </div>
+            
+            {/* Animal emojis positioned around the center */}
+            <div className="absolute inset-0">
+              {/* Top row */}
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                <div className="text-4xl animate-bounce" style={{ animationDelay: '0s', animationDuration: '1.5s' }}>
+                  {animalEmojis[0] || '🐱'}
+                </div>
+              </div>
+              
+              {/* Top-right */}
+              <div className="absolute top-8 right-4">
+                <div className="text-3xl animate-bounce" style={{ animationDelay: '0.2s', animationDuration: '1.7s' }}>
+                  {animalEmojis[1] || '🐶'}
+                </div>
+              </div>
+              
+              {/* Right */}
+              <div className="absolute right-0 top-1/2 transform -translate-y-1/2 translate-x-1/2">
+                <div className="text-4xl animate-bounce" style={{ animationDelay: '0.4s', animationDuration: '1.6s' }}>
+                  {animalEmojis[2] || '🐰'}
+                </div>
+              </div>
+              
+              {/* Bottom-right */}
+              <div className="absolute bottom-8 right-4">
+                <div className="text-3xl animate-bounce" style={{ animationDelay: '0.6s', animationDuration: '1.8s' }}>
+                  {animalEmojis[3] || '🐻'}
+                </div>
+              </div>
+              
+              {/* Bottom */}
+              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2">
+                <div className="text-4xl animate-bounce" style={{ animationDelay: '0.8s', animationDuration: '1.5s' }}>
+                  {animalEmojis[4] || '🐼'}
+                </div>
+              </div>
+              
+              {/* Bottom-left */}
+              <div className="absolute bottom-8 left-4">
+                <div className="text-3xl animate-bounce" style={{ animationDelay: '1s', animationDuration: '1.7s' }}>
+                  {animalEmojis[5] || '🦊'}
+                </div>
+              </div>
+              
+              {/* Left */}
+              <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1/2">
+                <div className="text-4xl animate-bounce" style={{ animationDelay: '1.2s', animationDuration: '1.6s' }}>
+                  {animalEmojis[6] || '🦉'}
+                </div>
+              </div>
+              
+              {/* Top-left */}
+              <div className="absolute top-8 left-4">
+                <div className="text-3xl animate-bounce" style={{ animationDelay: '1.4s', animationDuration: '1.8s' }}>
+                  {animalEmojis[7] || '🐧'}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Additional animals in a row below */}
+          <div className="flex justify-center gap-4 mb-6 flex-wrap">
+            {animalEmojis.slice(8).map((emoji, index) => (
+              <div 
+                key={index}
+                className="text-3xl animate-bounce opacity-75"
+                style={{ animationDelay: `${1.6 + index * 0.2}s`, animationDuration: '1.5s' }}
+              >
+                {emoji}
+              </div>
+            ))}
+          </div>
+          
+          <p className="text-gray-700 font-medium text-xl">Getting your bookshelf ready...</p>
           <p className="text-sm text-gray-500 mt-2">Hang tight! We're loading all your awesome books! ✨</p>
         </div>
       </div>
@@ -2106,6 +2189,7 @@ export default function App() {
             loadUserStats()
           ]);
         }}
+        onShowWelcome={() => setShowWelcomeModal(true)}
         onShowAbout={() => setShowAboutModal(true)}
         onShowProfile={() => setShowProfile(true)}
         onShowPublicRecommendations={() => setShowPublicRecommendations(true)}
@@ -2726,6 +2810,12 @@ export default function App() {
           setShowAchievementModal(false);
           setNewAchievement(null);
         }}
+      />
+
+      {/* Bookshelf Welcome Modal */}
+      <BookshelfWelcomeModal
+        show={showWelcomeModal}
+        onClose={() => setShowWelcomeModal(false)}
       />
 
       {/* Reward Unlocked Modal */}
